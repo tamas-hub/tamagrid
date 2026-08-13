@@ -1,11 +1,12 @@
 import { execFileSync } from "node:child_process";
 import {
-  chmodSync,
-  copyFileSync,
-  lstatSync,
+  closeSync,
+  constants,
   mkdirSync,
+  openSync,
   readFileSync,
   realpathSync,
+  writeFileSync,
 } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 
@@ -59,21 +60,19 @@ function main() {
   const expected = readFileSync(source);
 
   mkdirSync(hooksDirectory, { recursive: true });
+  let destinationDescriptor;
   try {
-    const existing = lstatSync(destination);
-    if (!existing.isFile() || existing.isSymbolicLink()) {
-      throw new Error("Existing pre-push hook is not a regular file.");
+    destinationDescriptor = openSync(
+      destination,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
+      0o755,
+    );
+    writeFileSync(destinationDescriptor, expected);
+  } finally {
+    if (destinationDescriptor !== undefined) {
+      closeSync(destinationDescriptor);
     }
-    const current = readFileSync(destination);
-    if (!current.equals(expected)) {
-      throw new Error("Existing pre-push hook must be preserved.");
-    }
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-    copyFileSync(source, destination);
   }
-
-  chmodSync(destination, 0o755);
   console.log("TamaGrid Git metadata privacy hook is active for this clone.");
 }
 
