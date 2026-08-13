@@ -173,9 +173,9 @@
 ### TG-SEC-011 — 既存public commitのprovenanceとauthor metadata
 
 - Severity: **Informational / privacy and provenance**
-- Status: **Mitigated for future commits; published history unchanged** — repository-local Git identityはGitHub noreply addressへ変更。hardening pull requests #7、#9、#10はGitHub上でsquash mergeされ、main commitsの署名はverified/valid。`main`はrequired signed commitsとstrict PR checksで保護済み。既存5 commitの書換えはpublic history、open Dependabot PR、cloneを無効化するため未実施。
-- Evidence: 現在公開済み5 commitはすべてunsignedで、全件のauthor metadataにnoreplyではないaddressが残っています。値自体はこの報告やlogへ再掲しません。
-- Recommendation: mainへrequired signed commitsを有効化し、以後はGitHub上のverified squash mergeまたは管理された署名keyを使います。既存metadataを完全に消す場合だけ、影響範囲を確認して別途明示許可の上でhistory rewrite / force-pushを行います。
+- Status: **Remediated on active refs / provider purge pending** — ownerの明示許可に基づき、GitHub公式手順と`git-filter-repo` 2.47.0で公開`main`のauthor / committer metadataをGitHub noreplyへ置換しました。source treeと9 commitのtopologyは不変です。GitHub email privacyと個人emailを含むcommand-line push拒否を有効化し、required `frontend` CIにも全到達commitのnoreply検査を追加しました。
+- Evidence: 書換え後のpublic `main` 9 commit、local object database 9 commit、repository-local Git identityはいずれもnon-noreply field 0件。public profile emailは非表示、fork 0、remote headは`main`だけ、tag / Releaseは0です。旧履歴を指したDependabot PR 5件とbranch、Actions run 58件、artifact 8件、cache 17件を削除しました。個人address値は報告やCI logへ再掲していません。
+- Residual risk: metadata変更により過去9 commitのGitHub署名は無効化されました。`main`のrequired signed commitsと他の保護は復元済みで、今後のcommitへ適用されます。GitHubが管理する11 PRのinternal refとcached commit viewはrepository操作だけでは消せないため、provider側のdereference / garbage collection / privacy対応が必要です。第三者cloneは存在を確認できず、公開前後のcloneを技術的に回収することはできません。
 
 ## 確認できた良い点
 
@@ -213,11 +213,11 @@
 - SHA-256: NSIS `49CF25C80F793547B9C7897881BB2568034D585722ED0F564CEEC0AF18328288`、MSI `D58A6DDBEBB911D74F37258BAB895250764759750B6DDE3A870B9E6A100A9521`。release setの `SHA256SUMS.txt` と一致
 - clean candidate check: ignore適用後128ファイルだけを新規directoryへ複製し、`pnpm install --frozen-lockfile`、frontend 44 tests / production build、Rust 7 testsを生成物ゼロから再実行して **pass**
 - GitHub Actions static check: 5 workflowを含むGitHub YAML 9件がparse **pass**、29のaction useがfull SHA。9 upstream repositoryすべてのcommitが存在し、署名検証`verified=true`。`pnpm/setup` v2.0.2はannotated tagとcommitの両方が`verified=true / reason=valid`。
-- GitHub CodeQL initial setup: run `31710120357` **success**、open CodeQL alert 0、open secret scanning alert 0、open Dependabot alert 0
-- GitHub hardened PR #7: CI run `31712898233`、CodeQL run `31712898252`、Security Audit run `31712898256` **all success**。squash merge commit `0354da25e465937f5fd51315a178b967913b8b6d` はGitHub署名 `verified=true / reason=valid`。
-- GitHub bundle smoke run `31714221594`: 同じmerge commitからWindows x64 NSIS/MSI、macOS arm64/x64 app/dmgをbuild **all success**。3 artifact / 22 files / zero-length 0、Mach-O architecture・bundle ID・version一致。download済みartifact全体のMicrosoft Defender scan（修復無効）は **no threats found**、Windows 2 artifactは想定どおり`NotSigned`。
-- GitHub supply-chain PR #9 / Intel fallback PR #10: 各9 required checks **all success**。GitHub-signed source commitsからsquash mergeされ、main commits `282d089670fb4582a30db62e141ca6996fe0c801` / `ab7a9d1b087857a76eb27673c5b29961e4dbd3f6` は`verified=true / reason=valid`、review済みtreeと一致。
-- Final bundle smoke run `31718238244`: Intel fallbackを含むWindows x64 / macOS arm64 / macOS x64 **all success**。3 artifact / 22 files / zero-length 0、architecture・bundle metadata・version・hash確認、Defender **no threats found**、Windows `NotSigned`を再確認。
+- GitHub CodeQL initial setup: pre-rewrite setup run **success**、open CodeQL alert 0、open secret scanning alert 0、open Dependabot alert 0。
+- GitHub hardened PR #7: CI / CodeQL / Security Audit **all success**。pre-rewrite squash commitはGitHub署名`verified=true / reason=valid`、review済みtreeと一致していました。
+- GitHub bundle smoke: 同じreview済みtreeからWindows x64 NSIS/MSI、macOS arm64/x64 app/dmgをbuild **all success**。3 artifact / 22 files / zero-length 0、Mach-O architecture・bundle ID・version一致。download済みartifact全体のMicrosoft Defender scan（修復無効）は **no threats found**、Windows 2 artifactは想定どおり`NotSigned`。
+- GitHub supply-chain PR #9 / Intel fallback PR #10: 各9 required checks **all success**。GitHub-signed source commitsからsquash mergeされ、review済みtreeと一致していました。
+- Final bundle smoke: Intel fallbackを含むWindows x64 / macOS arm64 / macOS x64 **all success**。3 artifact / 22 files / zero-length 0、architecture・bundle metadata・version・hash確認、Defender **no threats found**、Windows `NotSigned`を再確認。privacy rewrite後、旧SHA参照を断つためpre-rewrite Actions run / artifact / cacheは削除済みです。
 - Dependabot alert #1 (`GHSA-wrw7-89jp-8q8g`): locked target graphでWindows/macOS 3 targetから`glib 0.18.5`到達不能、unsupported Linuxのみ到達可能を確認し、理由付き`not_used`分類。open CodeQL / secret / Dependabot alertは各0。
 
 ## 限界

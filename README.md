@@ -160,7 +160,7 @@ TamaGridとCodexは別々に更新します。Codexを更新したあとTamaGrid
 - Windows Job Object / Unix process group、active turnのbest-effort interrupt、stdin close、bounded waitで子process treeを終了
 - restrictive Content Security Policy、remote transportなし、独自credential保管なし
 
-詳細は [docs/SECURITY.md](docs/SECURITY.md) と[修正後のセキュリティレビュー](SECURITY_REVIEW.md)を参照してください。公開前後の作業境界は [Public release checklist](PUBLIC_RELEASE_CHECKLIST.md)、実施済み／未実施の外部操作は [GitHub release preparation record](docs/GITHUB_RELEASE_PREPARATION_RECORD.md) に分けています。脆弱性は[Security policy](SECURITY.md)に従って報告し、ログやIssueへtoken、email、commandに含まれるsecretを貼らないでください。
+詳細は [docs/SECURITY.md](docs/SECURITY.md) と[修正後のセキュリティレビュー](SECURITY_REVIEW.md)を参照してください。公開前後の作業境界は [Public release checklist](PUBLIC_RELEASE_CHECKLIST.md)、実施済み／未実施の外部操作は [GitHub release preparation record](docs/GITHUB_RELEASE_PREPARATION_RECORD.md)、commit metadataの個人情報除去は [Privacy history rewrite record](docs/PRIVACY_HISTORY_REWRITE_RECORD.md) に分けています。脆弱性は[Security policy](SECURITY.md)に従って報告し、ログやIssueへtoken、email、commandに含まれるsecretを貼らないでください。
 
 ## Architecture
 

@@ -31,6 +31,7 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest",
     "test:run": "vitest run",
+    "check:commit-emails": "node scripts/check-commit-emails.mjs",
     "check": "pnpm lint && pnpm test:run && pnpm build",
     "preview": "vite preview",
     "tauri": "tauri"

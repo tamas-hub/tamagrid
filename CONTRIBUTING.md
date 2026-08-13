@@ -35,5 +35,6 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - Windows固有変更はWindows、macOS固有変更はmacOSでbuildする
 - READMEのsecurity、privacy、compatibility説明と実装を一致させる
 - security-sensitive変更は `SECURITY_REVIEW.md` のfinding / residual riskとtest evidenceを更新する
+- commitのauthor / committerにはGitHubのnoreply addressを使う。必須CIは全到達commitを検査し、実addressをlogへ出さずに拒否する
 
 commit、Issue、PRへcredential、account email、private repository path、実command outputを含めないでください。
