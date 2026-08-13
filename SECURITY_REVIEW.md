@@ -113,7 +113,7 @@
   - `.github/workflows/release.yml:41-51`
   - `.github/workflows/release.yml:73-95`
 - Original evidence: 修正前は `actions/checkout@v4`、`pnpm/action-setup@v4`、`dtolnay/rust-toolchain@stable`、`tauri-apps/tauri-action@v0` などmutable refを使用し、release全jobへ `contents: write` が付与され、Dependabot設定もありませんでした。
-- Remediation evidence: 初回remediationで6種類・22箇所の `uses:` をfull SHAへ固定し、古い無効な `pnpm/action-setup` SHAも署名済みv6.0.9 commitへ置換しました。最終hardeningではsuperseded `pnpm/action-setup` + `actions/setup-node`を公式後継`pnpm/setup` v2.0.2へ統合。tag / commit署名を検証し、exact SHAへ固定しました。最終状態は8 upstream repository・28箇所で、すべてupstream存在・署名を再検証済みです。全checkoutは `persist-credentials: false` です。
+- Remediation evidence: 初回remediationで6種類・22箇所の `uses:` をfull SHAへ固定し、古い無効な `pnpm/action-setup` SHAも署名済みv6.0.9 commitへ置換しました。最終hardeningではsuperseded `pnpm/action-setup`を公式後継`pnpm/setup` v2.0.2へ移行。tag / commit署名を検証し、exact SHAへ固定しました。pnpm v11 native binaryの上流`darwin-x64`不具合`pnpm/pnpm#11423`を避けるIntel bundle jobだけ、署名検証済み`actions/setup-node`とlifecycle script無効のexact npm packageを使います。最終状態は9 upstream repository・29箇所で、すべてupstream存在・署名を再検証済みです。全checkoutは `persist-credentials: false` です。
 - Impact: action tagまたはaction supply chainが侵害された場合、release binaryの改変、draft releaseの改変、repository contentへの書込につながり得ます。
 - Recommended fix: すべてのactionをreview済みfull commit SHAへpinし、Dependabotの`github-actions`更新を有効化します。workflow既定は `contents: read`、`publish` と `checksums` jobだけ `contents: write` にします。tag buildでもnative test/clippyを必須にし、公開repoではGitHub artifact attestationも検討してください。GitHubはfull SHA pinとleast privilegeを推奨しています。[GitHub Actions hardening](https://docs.github.com/en/code-security/tutorials/secure-your-organization/protect-against-threats) / [GITHUB_TOKEN permissions](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token)
 - Mitigation already present: frozen pnpm / Cargo lockfile、draft prerelease、手動公開、checksum、CycloneDX SBOM、third-party notice、Artifact Attestation、CIのread-only token。
@@ -212,7 +212,7 @@
 - Authenticode: NSIS / MSIとも `NotSigned`
 - SHA-256: NSIS `49CF25C80F793547B9C7897881BB2568034D585722ED0F564CEEC0AF18328288`、MSI `D58A6DDBEBB911D74F37258BAB895250764759750B6DDE3A870B9E6A100A9521`。release setの `SHA256SUMS.txt` と一致
 - clean candidate check: ignore適用後128ファイルだけを新規directoryへ複製し、`pnpm install --frozen-lockfile`、frontend 44 tests / production build、Rust 7 testsを生成物ゼロから再実行して **pass**
-- GitHub Actions static check: 5 workflowを含むGitHub YAML 9件がparse **pass**、28のaction useがfull SHA。8 upstream repositoryすべてのcommitが存在し、署名検証`verified=true`。`pnpm/setup` v2.0.2はannotated tagとcommitの両方が`verified=true / reason=valid`。
+- GitHub Actions static check: 5 workflowを含むGitHub YAML 9件がparse **pass**、29のaction useがfull SHA。9 upstream repositoryすべてのcommitが存在し、署名検証`verified=true`。`pnpm/setup` v2.0.2はannotated tagとcommitの両方が`verified=true / reason=valid`。
 - GitHub CodeQL initial setup: run `31710120357` **success**、open CodeQL alert 0、open secret scanning alert 0、open Dependabot alert 0
 - GitHub hardened PR #7: CI run `31712898233`、CodeQL run `31712898252`、Security Audit run `31712898256` **all success**。squash merge commit `0354da25e465937f5fd51315a178b967913b8b6d` はGitHub署名 `verified=true / reason=valid`。
 - GitHub bundle smoke run `31714221594`: 同じmerge commitからWindows x64 NSIS/MSI、macOS arm64/x64 app/dmgをbuild **all success**。3 artifact / 22 files / zero-length 0、Mach-O architecture・bundle ID・version一致。download済みartifact全体のMicrosoft Defender scan（修復無効）は **no threats found**、Windows 2 artifactは想定どおり`NotSigned`。
