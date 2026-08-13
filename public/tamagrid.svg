@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="TamaGrid">
+  <rect width="512" height="512" rx="112" fill="#10151d"/>
+  <rect x="74" y="76" width="364" height="360" rx="54" fill="#18212c" stroke="#354555" stroke-width="10"/>
+  <path d="M256 96v320M94 256h324" stroke="#354555" stroke-width="10"/>
+  <rect x="116" y="126" width="98" height="22" rx="11" fill="#25d7e5"/>
+  <rect x="116" y="166" width="62" height="14" rx="7" fill="#758799"/>
+  <rect x="298" y="126" width="98" height="22" rx="11" fill="#f0ad3d"/>
+  <rect x="334" y="166" width="62" height="14" rx="7" fill="#758799"/>
+  <path d="M142 340l42-42 42 42-42 42z" fill="#25d7e5"/>
+  <path d="M286 376h112v-24H318l80-80h-34l-78 78z" fill="#f0ad3d"/>
+</svg>
