@@ -70,7 +70,7 @@ Immediately before repository creation, the organization and unused repository p
 - Current Windows hardening branch linked a production Tauri executable successfully with `pnpm tauri build --no-bundle`; no installer or release artifact was created by that check.
 - A fresh source scan found zero representative secret-pattern files and zero credential-like filenames outside ignored build/dependency directories.
 - Cargo Audit 0.22.2 loaded 1,216 RustSec advisories and reported no vulnerability for the lockfile. It reported maintenance warnings; target-aware `cargo tree` confirmed the one `glib` unsound warning is in Tauri's Linux-only GTK graph and absent from Windows/macOS release targets. CI carries a documented one-advisory ignore while denying future unsound/yanked warnings.
-- All 31 workflow action references are full commit SHAs. All eight unique upstream action commits exist and report verified signatures.
+- All 34 workflow action references are full commit SHAs. All nine unique upstream action commits exist and report verified signatures.
 - Release native build passed.
 - Production npm audit reported no known vulnerability at the configured high threshold.
 - Six GitHub YAML files parsed successfully.
@@ -97,6 +97,7 @@ Immediately before repository creation, the organization and unused repository p
 - Changed the default workflow token from write to read and kept workflow pull-request approval disabled.
 - Restricted Actions to nine explicit repository patterns, disabled broad GitHub-owned/verified-publisher wildcards, and required full commit SHA pinning. The allowlist covers only the actions referenced by the checked-in workflows and GitHub CodeQL default setup.
 - Configured CodeQL default setup with the extended query suite, remote-and-local threat model, and GitHub's detected Actions/JavaScript/TypeScript/Rust languages. Setup run [31710120357](https://github.com/tamas-hub/tamagrid/actions/runs/31710120357) succeeded.
+- The first hardened PR had no CodeQL check from default setup, so default setup was disabled and replaced with a checked-in advanced workflow. It analyzes Actions, JavaScript/TypeScript, and Rust on pull requests, `main`, and a weekly schedule with the security-extended query suite; the CodeQL Action is pinned to the verified v4.37.7 commit.
 - Added twelve repository topics describing Codex App Server, Tauri/Rust/React/TypeScript, local-first desktop development, Windows and macOS.
 - Post-change verification found zero open CodeQL, secret-scanning and Dependabot alerts. No alert was dismissed or hidden.
 - The API first rejected an out-of-order selected-action update and two invalid CodeQL enum values; the requests were corrected without disabling already-applied controls. A transient empty-input error occurred during the topic update and the same intended payload succeeded on retry. Final state was read back after each correction.

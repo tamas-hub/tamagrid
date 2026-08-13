@@ -77,6 +77,7 @@ Tauri windowはlocal bundleだけを読み込み、Content Security Policyでdef
 - Windows / macOS artifactとchecksum manifestへGitHub Artifact Attestationを生成
 - Dependabotでnpm、Cargo、GitHub Actionsを週次確認
 - pull requestでmoderate以上の新規dependency riskをDependency Reviewにより拒否し、Cargo.lockをRustSecでpush / PR / 週次監査
+- Actions、JavaScript / TypeScript、RustをCodeQL security-extended queryでpush / PR / 週次解析
 - manual Bundle smokeでWindows x64、macOS Apple Silicon / Intelの実bundleを生成し、短期artifactとして人が確認可能
 - releaseはdraft prereleaseで停止し、checksum、attestation、unsigned表記を人が確認してから公開
 

@@ -190,7 +190,7 @@
 - dangerous authorityはnative dialogでturnごとに確認し、high-risk valueを永続化しません。
 - App Server process treeはWindows Job Object / Unix process groupへcontainします。
 - GitHub Actionsはfull SHA pin、least privilege、draft release、checksum、Artifact Attestationを組み合わせます。
-- GitHub repositoryはPrivate Vulnerability Reporting、secret scanning / push protection、Dependabot security updates、CodeQL extended default setup、read-only workflow token、action allowlist、required SHA pinningを有効化。初回CodeQL setup runは成功し、CodeQL / secret / Dependabot open alertは0件。
+- GitHub repositoryはPrivate Vulnerability Reporting、secret scanning / push protection、Dependabot security updates、read-only workflow token、action allowlist、required SHA pinningを有効化。初回CodeQL default scanは成功し、CodeQL / secret / Dependabot open alertは0件。PRを必ずgateするため、Actions / JavaScript・TypeScript / Rustの明示的なCodeQL advanced workflowへ移行。
 - installerのSHA-256は同梱manifestと一致しました。
 
 ## 実行した検証
@@ -212,7 +212,7 @@
 - Authenticode: NSIS / MSIとも `NotSigned`
 - SHA-256: NSIS `49CF25C80F793547B9C7897881BB2568034D585722ED0F564CEEC0AF18328288`、MSI `D58A6DDBEBB911D74F37258BAB895250764759750B6DDE3A870B9E6A100A9521`。release setの `SHA256SUMS.txt` と一致
 - clean candidate check: ignore適用後128ファイルだけを新規directoryへ複製し、`pnpm install --frozen-lockfile`、frontend 44 tests / production build、Rust 7 testsを生成物ゼロから再実行して **pass**
-- GitHub Actions static check: 4 workflowを含むGitHub YAML 8件がparse **pass**、31のaction useがfull SHA。8種類すべてのupstream commitが存在し、署名検証`verified=true`。
+- GitHub Actions static check: 5 workflowを含むGitHub YAML 9件がparse **pass**、34のaction useがfull SHA。9種類すべてのupstream commitが存在し、署名検証`verified=true`。
 - GitHub CodeQL initial setup: run `31710120357` **success**、open CodeQL alert 0、open secret scanning alert 0、open Dependabot alert 0
 
 ## 限界

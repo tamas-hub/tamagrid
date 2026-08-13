@@ -41,10 +41,10 @@ This checklist separates verified source/repository work from the remaining rele
 - [x] Enable Private Vulnerability Reporting
 - [x] Enable secret scanning and push protection (validity checks and non-provider patterns are unavailable for this repository and remain disabled)
 - [x] Enable Dependabot alerts and security updates
-- [x] Enable CodeQL/default code scanning for JavaScript/TypeScript, Rust, and Actions; initial extended scan succeeded with zero open alerts
+- [x] Initial CodeQL default scan succeeded with zero open alerts; replace it with a checked-in advanced workflow so Actions, JavaScript/TypeScript, and Rust are explicit PR checks
 - [x] Set default Actions `GITHUB_TOKEN` permissions to read-only, disable workflow PR approval, restrict actions to an explicit allowlist, and require full SHA pinning
 - [ ] Protect the default branch with required CI, review, and force-push restrictions
-- [ ] Run the hardened CI once on a pull request and confirm Dependency Review, RustSec, Windows, and macOS jobs succeed
+- [ ] Run the hardened CI once on a pull request and confirm Dependency Review, RustSec, CodeQL for three languages, Windows, and macOS jobs succeed
 - [ ] Confirm GitHub recognizes the pinned Actions and attestation permissions
 - [ ] Review repository description, topics, social preview, license detection, and README rendering (description/topics/license completed; social preview and final rendered README remain)
 - [ ] Perform manual Windows UI smoke tests on an installed build

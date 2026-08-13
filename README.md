@@ -209,7 +209,7 @@ pnpm install --frozen-lockfile
 pnpm tauri build
 ```
 
-WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local buildには各OSのTauri prerequisitesが必要です。GitHub Actionsはpush / pull requestでquality check、依存差分review、RustSec監査、Windows / macOS native buildを行います。手動のBundle smoke workflowでは3 platformの実bundleを7日だけ保持して確認できます。`vX.Y.Z` tagはchecksum・build provenance・production JavaScript SBOM付きdraft prereleaseだけを作り、自動公開しません。third-party actionはfull commit SHAへ固定しています。release手順は [docs/RELEASING.md](docs/RELEASING.md) を参照してください。
+WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local buildには各OSのTauri prerequisitesが必要です。GitHub Actionsはpush / pull requestでquality check、依存差分review、RustSec監査、Actions / JavaScript・TypeScript / RustのCodeQL、Windows / macOS native buildを行います。手動のBundle smoke workflowでは3 platformの実bundleを7日だけ保持して確認できます。`vX.Y.Z` tagはchecksum・build provenance・production JavaScript SBOM付きdraft prereleaseだけを作り、自動公開しません。third-party actionはfull commit SHAへ固定しています。release手順は [docs/RELEASING.md](docs/RELEASING.md) を参照してください。
 
 ## Contributing
 
