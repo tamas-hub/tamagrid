@@ -60,7 +60,7 @@ Immediately before repository creation, the organization and unused repository p
 - Added Rust-side bounded/coalesced delta delivery, terminal-event ordering, serialized sequence/delivery, expanded diagnostic redaction, and post-disconnect event suppression.
 - Added pull-request Dependency Review at moderate severity, scheduled/push/PR RustSec auditing, and a manual three-platform unsigned bundle-smoke workflow with seven-day artifacts.
 - Added release gates requiring the tag commit to belong to `main`, all three version sources to match the tag, release notes to exist, and JavaScript/Rust audits to pass before draft artifact creation.
-- Replaced the superseded `pnpm/action-setup` plus `actions/setup-node` pair with official successor `pnpm/setup` v2.0.2. Its reviewed tag and commit are both signed and valid; the workflow pins the exact commit, installs the exact pnpm version, installs Node 22, verifies the pnpm package against the npm registry signature, and reduces the workflow's third-party action surface by one repository and six action invocations.
+- Replaced the superseded `pnpm/action-setup` plus `actions/setup-node` pair with official successor `pnpm/setup` v2.0.2. Its reviewed tag and commit are both signed and valid; the workflow pins the exact commit, installs the exact pnpm version, installs Node 22, and verifies the pnpm package against the npm registry signature. pnpm v11 has no working native Intel macOS binary because of upstream `pnpm/pnpm#11423`, so only that bundle-smoke matrix entry retains pinned `actions/setup-node` and installs exact `pnpm@11.21.0` from npm with lifecycle scripts disabled.
 - Set this repository's local Git author email to the authenticated account's GitHub noreply form without displaying or recording the address.
 
 ## Verification evidence
@@ -71,7 +71,7 @@ Immediately before repository creation, the organization and unused repository p
 - Current Windows hardening branch linked a production Tauri executable successfully with `pnpm tauri build --no-bundle`; no installer or release artifact was created by that check.
 - A fresh source scan found zero representative secret-pattern files and zero credential-like filenames outside ignored build/dependency directories.
 - Cargo Audit 0.22.2 loaded 1,216 RustSec advisories and reported no vulnerability for the lockfile. It reported maintenance warnings; target-aware `cargo tree` confirmed the one `glib` unsound warning is in Tauri's Linux-only GTK graph and absent from Windows/macOS release targets. CI carries a documented one-advisory ignore while denying future unsound/yanked warnings.
-- All 28 workflow action references are full commit SHAs. All eight unique upstream action commits exist and report verified signatures.
+- All 29 workflow action references are full commit SHAs. All nine unique upstream action commits exist and report verified signatures.
 - Release native build passed.
 - Production npm audit reported no known vulnerability at the configured high threshold.
 - Six GitHub YAML files parsed successfully.
@@ -117,6 +117,7 @@ Immediately before repository creation, the organization and unused repository p
 - Squash-merged hardened pull request [#7](https://github.com/tamas-hub/tamagrid/pull/7) only after all nine final-head required checks succeeded. Direct merge commits and rebase merges were disabled; squash merge is the only enabled merge mode and merged branches are deleted automatically.
 - Protected `main` with strict status checks bound to their GitHub App IDs: CodeQL Actions, JavaScript/TypeScript and Rust analysis, the GitHub Advanced Security CodeQL summary, Dependency Review, frontend, Windows/macOS native CI, and RustSec. Pull requests, stale-review dismissal, admin enforcement, linear history, conversation resolution and signed commits are required; force pushes and deletion are disabled. A first API payload combining legacy contexts with App-bound checks was rejected with `422`; the corrected checks-only payload succeeded and the complete protection object was read back.
 - Enabled immutable releases for future releases. This does not create a tag or release; it prevents mutation after a release is published while still allowing a draft to be assembled and inspected.
+- The first post-migration bundle-smoke run [31717777501](https://github.com/tamas-hub/tamagrid/actions/runs/31717777501) exposed an Intel-macOS-only `pnpm/setup` failure before project code ran. The check annotation identifies upstream `pnpm/pnpm#11423`: pnpm v11's Node SEA binary is not usable on `darwin-x64`. The fallback keeps version 11.21.0, does not adopt the pnpm 12 release candidate, and does not weaken action SHA pinning.
 
 Latest local release candidate directory (a sibling of the repository and not part of the public source candidate):
 

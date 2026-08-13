@@ -33,6 +33,7 @@ This checklist separates verified source/repository work from the remaining rele
 - [x] Public repository created and the reviewed source tree pushed to `main`
 - [x] Clean 128-file candidate restores from the frozen lockfile and passes frontend/Rust tests
 - [x] Signed upstream commits verified for every pinned GitHub Action; checkout credentials are not persisted
+- [x] Intel macOS bundle bootstrap uses exact pnpm 11.21.0 through pinned Node setup because the pnpm v11 native `darwin-x64` binary is affected by upstream `pnpm/pnpm#11423`; other jobs use the signed `pnpm/setup` successor
 
 ## Required after repository creation
 
