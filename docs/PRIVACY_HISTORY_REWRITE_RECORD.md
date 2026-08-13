@@ -33,7 +33,9 @@ It did not authorize a tag, GitHub Release, installer upload, repository visibil
 8. Restored all nine App-bound required checks, strict mode, pull-request requirement, administrator enforcement, required signed commits, linear history, conversation resolution, force-push prohibition, and deletion prohibition. The complete protection object was read back.
 9. Deleted all 58 pre-rewrite Actions runs, their eight artifacts, and 17 Actions caches. The three newly triggered sanitized-main runs were excluded.
 10. Updated the local `main`, deleted four explicitly inventoried local topic branches, expired reflogs, and pruned unreachable objects. The final object database contains nine commit objects, zero non-noreply commit fields, zero Gmail-domain blob hits, and zero unreachable objects.
-11. Added a required-CI metadata check. It scans every commit reachable from `HEAD`, permits only GitHub noreply forms, and never prints an address value on failure.
+11. Added a required-CI metadata check. It scans every commit reachable from `HEAD` and all refs plus annotated taggers, permits only GitHub noreply forms, and never prints an address value on failure.
+12. Tested a repository metadata ruleset with a dummy non-personal address. GitHub exposed the configuration through the API but did not enforce it because commit metadata restrictions are an Enterprise-only capability. Every temporary test branch was deleted immediately. The misleading rule was replaced with an active, no-bypass, all-branch verified-signature ruleset and an unsigned negative push was rejected.
+13. Added a tracked pre-push hook that checks every outgoing ref before network transmission, including commit author/committer fields and annotated tagger fields. The installer refuses to overwrite an existing pre-push hook or custom hooks path; contributors can enable it per clone with `pnpm install:privacy-hook`.
 
 ## Signature and compatibility impact
 
@@ -41,9 +43,13 @@ Changing Git author/committer metadata changes commit IDs and invalidates embedd
 
 Old clones must rebase or clone again rather than merge their old history, because merging an old branch can reintroduce the removed metadata. Dependabot can recreate its update branches from the rewritten `main`.
 
+GitHub Free does not enforce commit-email metadata restrictions. The practical prevention layers are therefore the account-level private-email push block, repository-local noreply identity, tracked pre-push validation, required CI validation, protected `main`, and verified signatures on every upstream branch. The local hook is intentionally fail-closed but, like all Git hooks, must be enabled separately in each new clone.
+
 ## Provider-managed residual
 
 Repository-owner operations cannot delete GitHub's read-only pull-request refs or guarantee immediate removal of cached commit views. GitHub's official guidance requires a provider-side privacy/support request containing the repository, affected pull-request count, and first changed commit. Until GitHub completes dereferencing and garbage collection, an old commit may remain reachable by a previously known object ID.
+
+The final provider-residual audit fetched 12 GitHub-managed pull-request refs covering 12 pull requests. Eleven pull requests still reached the removed metadata; 13 of the 15 inventoried pre-rewrite commits remained addressable through the GitHub commit API. The address values and old object IDs are intentionally omitted from public records.
 
 Submitting a support or privacy form is an external message and is intentionally not represented as completed in this record. Third-party clones, if any were made before the rewrite, also cannot be remotely erased; GitHub reported zero forks at the time of cleanup.
 

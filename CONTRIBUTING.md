@@ -21,9 +21,12 @@ Tauriの[platform prerequisites](https://v2.tauri.app/start/prerequisites/)を�
 
 ```powershell
 pnpm install --frozen-lockfile
+pnpm install:privacy-hook
 pnpm check
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
+
+`install:privacy-hook` はtracked hookをこのcloneのGit metadata内へ安全にコピーして有効化します。既存のpre-push hookやcustom hooks pathは上書きせず停止します。hookはpush対象のcommit author / committerとannotated taggerをGitHub noreply形式に限定し、address値を出力せず送信前に失敗させます。GitHub Freeではcommit metadata rulesetが実効しないため、cloneごとにこの設定が必要です。
 
 実際のApp Serverを使う確認では、テスト用または自分自身のCodex環境だけを使用し、ログへ秘密情報を残さないでください。
 
@@ -35,6 +38,6 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - Windows固有変更はWindows、macOS固有変更はmacOSでbuildする
 - READMEのsecurity、privacy、compatibility説明と実装を一致させる
 - security-sensitive変更は `SECURITY_REVIEW.md` のfinding / residual riskとtest evidenceを更新する
-- commitのauthor / committerにはGitHubのnoreply addressを使う。必須CIは全到達commitを検査し、実addressをlogへ出さずに拒否する
+- commitのauthor / committerとannotated taggerにはGitHubのnoreply addressを使う。tracked pre-push hookと必須CIは全ref / tagを検査し、実addressをlogへ出さずに拒否する
 
 commit、Issue、PRへcredential、account email、private repository path、実command outputを含めないでください。

@@ -32,6 +32,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "check:commit-emails": "node scripts/check-commit-emails.mjs",
+    "install:privacy-hook": "node scripts/install-privacy-hook.mjs",
     "check": "pnpm lint && pnpm test:run && pnpm build",
     "preview": "vite preview",
     "tauri": "tauri"
