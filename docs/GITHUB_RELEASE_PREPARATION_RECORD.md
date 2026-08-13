@@ -74,7 +74,7 @@ Immediately before repository creation, the organization and unused repository p
 - The first CI run failed before project commands because `pnpm/action-setup` v6 attempted to self-update through broken `pnpm@11.12.0`. Explicitly setting that broken version did not resolve the upstream bootstrap failure.
 - Confirmed through npm package metadata that `pnpm@11.12.0` was deprecated as broken, upgraded to `11.21.0`, repeated the local frozen-install/audit/check suite successfully, and pushed the corrective commit `61cc542da45466046889e515d3da74b1bdbf89d9`.
 - Verified the public repository is `PUBLIC`, non-empty, uses `main` as the default branch, and exposes the expected README, MIT license and security policy.
-- GitHub automatically started Dependabot evaluations from the checked-in configuration. No dependency update was merged and no Dependabot-generated change was accepted.
+- GitHub automatically evaluated the checked-in Dependabot configuration and opened six update pull requests (`#1` through `#6`). No dependency update was merged, edited or closed and no Dependabot-generated change was accepted.
 
 Latest local release candidate directory (a sibling of the repository and not part of the public source candidate):
 
