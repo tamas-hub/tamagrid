@@ -1,6 +1,6 @@
 # GitHub publication and release preparation record
 
-Date: 2026-08-13
+Date: 2026-08-14
 Planned repository: `https://github.com/tamas-hub/tamagrid`
 Planned first release: `v0.5.0` Public Preview
 
@@ -60,6 +60,7 @@ Immediately before repository creation, the organization and unused repository p
 - Added Rust-side bounded/coalesced delta delivery, terminal-event ordering, serialized sequence/delivery, expanded diagnostic redaction, and post-disconnect event suppression.
 - Added pull-request Dependency Review at moderate severity, scheduled/push/PR RustSec auditing, and a manual three-platform unsigned bundle-smoke workflow with seven-day artifacts.
 - Added release gates requiring the tag commit to belong to `main`, all three version sources to match the tag, release notes to exist, and JavaScript/Rust audits to pass before draft artifact creation.
+- Replaced the superseded `pnpm/action-setup` plus `actions/setup-node` pair with official successor `pnpm/setup` v2.0.2. Its reviewed tag and commit are both signed and valid; the workflow pins the exact commit, installs the exact pnpm version, installs Node 22, verifies the pnpm package against the npm registry signature, and reduces the workflow's third-party action surface by one repository and six action invocations.
 - Set this repository's local Git author email to the authenticated account's GitHub noreply form without displaying or recording the address.
 
 ## Verification evidence
@@ -70,7 +71,7 @@ Immediately before repository creation, the organization and unused repository p
 - Current Windows hardening branch linked a production Tauri executable successfully with `pnpm tauri build --no-bundle`; no installer or release artifact was created by that check.
 - A fresh source scan found zero representative secret-pattern files and zero credential-like filenames outside ignored build/dependency directories.
 - Cargo Audit 0.22.2 loaded 1,216 RustSec advisories and reported no vulnerability for the lockfile. It reported maintenance warnings; target-aware `cargo tree` confirmed the one `glib` unsound warning is in Tauri's Linux-only GTK graph and absent from Windows/macOS release targets. CI carries a documented one-advisory ignore while denying future unsound/yanked warnings.
-- All 34 workflow action references are full commit SHAs. All nine unique upstream action commits exist and report verified signatures.
+- All 28 workflow action references are full commit SHAs. All eight unique upstream action commits exist and report verified signatures.
 - Release native build passed.
 - Production npm audit reported no known vulnerability at the configured high threshold.
 - Six GitHub YAML files parsed successfully.
@@ -81,6 +82,17 @@ Immediately before repository creation, the organization and unused repository p
   - Ubuntu frontend job: frozen install, production dependency audit, ESLint, 44 tests, TypeScript and production Vite build.
   - Windows native job: Rust format, Clippy with denied warnings, 7 Rust tests and Tauri native build without bundling.
   - macOS native job: Rust format, Clippy with denied warnings, 7 Rust tests and Tauri native build without bundling.
+- Hardened pull request [#7](https://github.com/tamas-hub/tamagrid/pull/7) passed Dependency Review, RustSec, frontend, Windows/macOS native CI, CodeQL Actions, CodeQL JavaScript/TypeScript, CodeQL Rust, and the GitHub Advanced Security CodeQL summary before merge. Evidence is retained in runs [31712898233](https://github.com/tamas-hub/tamagrid/actions/runs/31712898233), [31712898252](https://github.com/tamas-hub/tamagrid/actions/runs/31712898252), and [31712898256](https://github.com/tamas-hub/tamagrid/actions/runs/31712898256).
+- Pull request #7 was squash-merged as `0354da25e465937f5fd51315a178b967913b8b6d`; GitHub reports the merge commit signature as verified and valid.
+- Manual bundle-smoke run [31714221594](https://github.com/tamas-hub/tamagrid/actions/runs/31714221594) succeeded from that exact merge commit on Windows x64, macOS arm64 and macOS x64. It retained three nonempty seven-day artifacts containing NSIS, MSI, both DMGs and both `.app` bundles; all 22 downloaded files were nonzero. The macOS binaries identify as the expected Mach-O arm64/x86_64 architectures, both bundle identifiers and versions are `io.github.tamas-hub.tamagrid` / `0.5.0`, and the Windows artifacts remain intentionally `NotSigned`.
+- Microsoft Defender scanned the complete downloaded workflow-artifact tree with remediation disabled and reported no threats. SHA-256 values were independently recorded for the four distributable containers below. This proves the inspected temporary artifacts, not a future release build.
+
+| Bundle-smoke deliverable | SHA-256 |
+| --- | --- |
+| `TamaGrid_0.5.0_x64-setup.exe` | `3B7A78898F8AB9F6663F423BF7234D305B7DE061E0D69C1A75F49CF1133C39C1` |
+| `TamaGrid_0.5.0_x64_en-US.msi` | `7D06872BC27C5AF58DF630B50C26BACF1BAF3D4C40E5A1FDB41F144BFAD75B18` |
+| `TamaGrid_0.5.0_aarch64.dmg` | `AF990E34BD767751DF538FD29871128D9B85294279CA736BBD5BB8B8D8C7C520` |
+| `TamaGrid_0.5.0_x64.dmg` | `2AEDC18907670B201B4D59E40E8DA7834CA2A9CE14BC6089762E8B699C153FA4` |
 
 ## External actions performed
 
@@ -102,6 +114,9 @@ Immediately before repository creation, the organization and unused repository p
 - Post-change verification found zero open CodeQL, secret-scanning and Dependabot alerts. No alert was dismissed or hidden.
 - The API first rejected an out-of-order selected-action update and two invalid CodeQL enum values; the requests were corrected without disabling already-applied controls. A transient empty-input error occurred during the topic update and the same intended payload succeeded on retry. Final state was read back after each correction.
 - The first advanced CodeQL run stopped at workflow startup because `github/codeql-action@*` did not match the nested `init` and `analyze` actions. No code executed. The broad ineffective pattern was replaced with the two exact sub-action patterns; startup-failure runs cannot be retried, so a normal follow-up commit retriggered the PR workflows.
+- Squash-merged hardened pull request [#7](https://github.com/tamas-hub/tamagrid/pull/7) only after all nine final-head required checks succeeded. Direct merge commits and rebase merges were disabled; squash merge is the only enabled merge mode and merged branches are deleted automatically.
+- Protected `main` with strict status checks bound to their GitHub App IDs: CodeQL Actions, JavaScript/TypeScript and Rust analysis, the GitHub Advanced Security CodeQL summary, Dependency Review, frontend, Windows/macOS native CI, and RustSec. Pull requests, stale-review dismissal, admin enforcement, linear history, conversation resolution and signed commits are required; force pushes and deletion are disabled. A first API payload combining legacy contexts with App-bound checks was rejected with `422`; the corrected checks-only payload succeeded and the complete protection object was read back.
+- Enabled immutable releases for future releases. This does not create a tag or release; it prevents mutation after a release is published while still allowing a draft to be assembled and inspected.
 
 Latest local release candidate directory (a sibling of the repository and not part of the public source candidate):
 
@@ -121,18 +136,19 @@ The local set also contains `RELEASE_NOTES.md`, `THIRD_PARTY_NOTICES.md`, `tamag
 3. [x] Review the 128-file candidate, create the initial commit and push only `main`.
 4. [x] Resolve the first-run pnpm bootstrap issue and confirm CI succeeds on Ubuntu, Windows and macOS.
 5. [x] Enable Private Vulnerability Reporting, secret scanning/push protection, Dependabot alerts/security updates, CodeQL/default scanning, read-only default workflow permissions, selected-action policy and SHA pinning.
-6. [ ] Merge the hardened pull request only after Dependency Review, Security Audit, Windows/macOS native CI and CodeQL checks succeed; then protect `main` with those exact required checks, required pull requests, required signed commits, no force-push/delete and admin enforcement.
-7. [ ] Review social preview and final rendered README. The description, topics and license detection are complete.
-8. [ ] Perform the remaining installed Windows UI smoke tests and native macOS runtime checks in `PUBLIC_RELEASE_CHECKLIST.md`.
-9. [ ] Only after explicit release authorization, push tag `v0.5.0`. The workflow must stop at a draft prerelease.
-10. [ ] Download every draft asset, validate `SHA256SUMS.txt`, verify GitHub attestations, compare the release body with the checked-in notes, and confirm unsigned/notarization warnings.
-11. [ ] Publish the draft only after a separate manual owner decision.
+6. [x] Merge the hardened pull request only after Dependency Review, Security Audit, Windows/macOS native CI and CodeQL checks succeed; then protect `main` with those exact required checks, required pull requests, required signed commits, no force-push/delete and admin enforcement.
+7. [x] Build and inspect temporary unsigned Windows x64, macOS arm64 and macOS x64 workflow artifacts from the hardened main commit.
+8. [ ] Review social preview and final rendered README. The description, topics and license detection are complete.
+9. [ ] Perform the remaining installed Windows UI smoke tests and native macOS runtime checks in `PUBLIC_RELEASE_CHECKLIST.md`.
+10. [ ] Only after explicit release authorization, push tag `v0.5.0`. The workflow must stop at a draft prerelease.
+11. [ ] Download every draft asset, validate `SHA256SUMS.txt`, verify GitHub attestations, compare the release body with the checked-in notes, and confirm unsigned/notarization warnings.
+12. [ ] Publish the draft only after a separate manual owner decision.
 
 ## Recovery and non-actions
 
 The public `main` history should be corrected with normal follow-up or revert commits rather than force-pushed. Existing unsigned commits and their author metadata were not rewritten; doing so would invalidate public commit IDs and open Dependabot branches and requires a separate destructive-operation decision. If publication itself must be withdrawn, archiving, changing visibility or deleting the repository requires a separate owner decision; deletion is destructive and was not performed.
 
-No tag, GitHub Release, installer upload, release attestation, secret, certificate or signing credential was created. The unsigned local `r3` installer set remains outside the repository and was not uploaded. Existing earlier installer sets were preserved.
+No tag, GitHub Release, release attestation, secret, certificate or signing credential was created. The unsigned local `r3` installer set remains outside the repository and was not uploaded. Existing earlier installer sets were preserved. Temporary seven-day workflow artifacts from the manual bundle-smoke workflow are CI evidence, not a GitHub Release.
 
 Repository-setting recovery is reversible: Private Vulnerability Reporting and automated security fixes can be disabled; CodeQL default setup can return to `not-configured`; Actions can return to `allowed_actions=all`, no SHA requirement and a write-default token; secret scanning/push protection can be disabled; topics can be reset. Those weaker settings are not recommended and no rollback was performed. Source changes can be reverted through a normal pull request after merge.
 
