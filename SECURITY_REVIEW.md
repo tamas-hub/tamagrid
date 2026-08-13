@@ -173,9 +173,9 @@
 ### TG-SEC-011 — 既存public commitのprovenanceとauthor metadata
 
 - Severity: **Informational / privacy and provenance**
-- Status: **Remediated on active refs / provider purge pending** — ownerの明示許可に基づき、GitHub公式手順と`git-filter-repo` 2.47.0で公開`main`のauthor / committer metadataをGitHub noreplyへ置換しました。source treeと9 commitのtopologyは不変です。GitHub email privacyと個人emailを含むcommand-line push拒否を有効化し、required `frontend` CIにも全到達commitのnoreply検査を追加しました。
-- Evidence: 書換え後のpublic `main` 9 commit、local object database 9 commit、repository-local Git identityはいずれもnon-noreply field 0件。public profile emailは非表示、fork 0、remote headは`main`だけ、tag / Releaseは0です。旧履歴を指したDependabot PR 5件とbranch、Actions run 58件、artifact 8件、cache 17件を削除しました。個人address値は報告やCI logへ再掲していません。
-- Residual risk: metadata変更により過去9 commitのGitHub署名は無効化されました。`main`のrequired signed commitsと他の保護は復元済みで、今後のcommitへ適用されます。GitHubが管理する11 PRのinternal refとcached commit viewはrepository操作だけでは消せないため、provider側のdereference / garbage collection / privacy対応が必要です。第三者cloneは存在を確認できず、公開前後のcloneを技術的に回収することはできません。
+- Status: **Remediated on active refs / provider purge pending** — ownerの明示許可に基づき、GitHub公式手順と`git-filter-repo` 2.47.0で公開`main`のauthor / committer metadataをGitHub noreplyへ置換しました。source treeと9 commitのtopologyは不変です。GitHub email privacyと個人emailを含むcommand-line push拒否を有効化し、tracked pre-push hookとrequired `frontend` CIへ全ref / annotated tagのnoreply検査を追加しました。
+- Evidence: 書換え直後のpublic `main` 9 commit、local object database 9 commit、repository-local Git identityはいずれもnon-noreply field 0件。public profile emailは非表示、fork 0、remote headは`main`だけ、tag / Releaseは0です。旧履歴を指したDependabot PR 5件とbranch、Actions run 58件、artifact 8件、cache 17件を削除しました。GitHub Freeで実効しないmetadata rulesetは負試験後に撤回し、no-bypass・全branchのverified-signature rulesetへ置換しました。個人address値は報告やCI logへ再掲していません。
+- Residual risk: metadata変更により過去9 commitのGitHub署名は無効化されました。`main`のrequired signed commitsと他の保護は復元済みで、今後のcommitへ適用されます。GitHub Freeではemail metadata rulesetを強制できず、tracked hookはcloneごとの有効化が必要です。最終監査ではGitHubが管理する12 PR refsのうち11 PRが旧metadataへ到達し、旧15 commit中13件がAPI参照可能でした。repository操作だけでは消せないため、provider側のdereference / garbage collection / privacy対応が必要です。第三者cloneは存在を確認できず、公開前後のcloneを技術的に回収することはできません。
 
 ## 確認できた良い点
 
