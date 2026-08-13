@@ -8,7 +8,7 @@ Run and supervise up to four local Codex App Server threads in one desktop cockp
 
 > TamaGrid is an independent open-source project and is not affiliated with or endorsed by OpenAI.
 
-> **Project status:** Public source preview (`v0.5.0`). No public installer has been released yet. Future preview binaries will be unsigned and must pass the documented manual release gate.
+> **Project status:** Public Preview (`v0.5.0`). Preview binaries are distributed through GitHub Releases only after the documented manual release gate. Windows builds are unsigned and macOS builds are not Developer ID notarized.
 
 [View release status](../../releases)
 
@@ -16,13 +16,13 @@ Run and supervise up to four local Codex App Server threads in one desktop cockp
 
 ## Download
 
-公開済みのinstallerはまだありません。最初のGitHub Releaseを公開する場合は、次のartifactを提供する予定です。
+GitHubの手動公開ゲートを通過したPublic Preview artifactは [Releases](../../releases) から取得できます。`v0.5.0`では次のartifactを対象とします。
 
 - Windows `TamaGrid_*_x64-setup.exe` — 通常の対話型installer（推奨）
 - Windows `TamaGrid_*_x64_en-US.msi` — MSIを必要とする環境向け
 - macOS `.dmg` / `.app` — ad-hoc署名、Developer ID notarizationなし
 
-予定しているWindows版はAuthenticode未署名のため、Microsoft Defender SmartScreenが警告する場合があります。SmartScreenを無効化せず、公開後はGitHub Releaseの配布元と `SHA256SUMS.txt` を確認し、内容を信頼できる場合だけ実行してください。企業管理PCではpolicyにより実行できない場合があります。
+Windows版はAuthenticode未署名のため、Microsoft Defender SmartScreenが警告する場合があります。SmartScreenを無効化せず、GitHub Releaseの配布元と `SHA256SUMS.txt` を確認し、内容を信頼できる場合だけ実行してください。企業管理PCではpolicyにより実行できない場合があります。
 
 PowerShellでchecksumと署名状態を確認できます。
 
@@ -126,7 +126,7 @@ Model名やreasoning levelはTamaGridへ固定していません。接続中はA
 
 ## Windows installation
 
-0.5.0はPublic source previewで、installerは未公開です。将来tagを明示的にpushした場合だけ、GitHub Actionsがunsigned NSIS / MSI installer、`SHA256SUMS.txt`、GitHub Artifact Attestationを含むdraft prereleaseを生成します。Release ownerがartifact、checksum、provenance、説明を確認するまで公開されません。
+0.5.0はPublic Previewです。明示的にpushされたtagに対し、GitHub Actionsがunsigned NSIS / MSI installer、`SHA256SUMS.txt`、GitHub Artifact Attestationを含むdraft prereleaseを生成します。Release ownerがartifact、checksum、provenance、説明を確認したものだけを [GitHub Releases](../../releases) で公開します。
 
 初回起動後にSettingsを開き、**Auto detect** または **Choose executable** でnative `codex.exe` を選び、**Test connection** を実行します。Microsoft Defender SmartScreenが未署名buildを警告する場合があります。入手元とchecksumを確認して判断してください。
 
