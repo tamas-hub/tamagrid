@@ -113,7 +113,7 @@
   - `.github/workflows/release.yml:41-51`
   - `.github/workflows/release.yml:73-95`
 - Original evidence: 修正前は `actions/checkout@v4`、`pnpm/action-setup@v4`、`dtolnay/rust-toolchain@stable`、`tauri-apps/tauri-action@v0` などmutable refを使用し、release全jobへ `contents: write` が付与され、Dependabot設定もありませんでした。
-- Remediation evidence: 初回remediationで6種類・22箇所の `uses:` をfull SHAへ固定し、古い無効な `pnpm/action-setup` SHAも署名済みv6.0.9 commitへ置換しました。追加hardening後は8種類・31箇所で、すべてupstream存在・署名を再検証済みです。全checkoutは `persist-credentials: false` です。
+- Remediation evidence: 初回remediationで6種類・22箇所の `uses:` をfull SHAへ固定し、古い無効な `pnpm/action-setup` SHAも署名済みv6.0.9 commitへ置換しました。最終hardeningではsuperseded `pnpm/action-setup` + `actions/setup-node`を公式後継`pnpm/setup` v2.0.2へ統合。tag / commit署名を検証し、exact SHAへ固定しました。最終状態は8 upstream repository・28箇所で、すべてupstream存在・署名を再検証済みです。全checkoutは `persist-credentials: false` です。
 - Impact: action tagまたはaction supply chainが侵害された場合、release binaryの改変、draft releaseの改変、repository contentへの書込につながり得ます。
 - Recommended fix: すべてのactionをreview済みfull commit SHAへpinし、Dependabotの`github-actions`更新を有効化します。workflow既定は `contents: read`、`publish` と `checksums` jobだけ `contents: write` にします。tag buildでもnative test/clippyを必須にし、公開repoではGitHub artifact attestationも検討してください。GitHubはfull SHA pinとleast privilegeを推奨しています。[GitHub Actions hardening](https://docs.github.com/en/code-security/tutorials/secure-your-organization/protect-against-threats) / [GITHUB_TOKEN permissions](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token)
 - Mitigation already present: frozen pnpm / Cargo lockfile、draft prerelease、手動公開、checksum、CycloneDX SBOM、third-party notice、Artifact Attestation、CIのread-only token。
@@ -164,7 +164,7 @@
 ### TG-SEC-010 — Windows installerはAuthenticode未署名
 
 - Severity: **Informational / distribution trust risk**
-- Status: **Accepted for Public Preview / mitigated in workflow source** — unsigned表示とchecksumを維持し、GitHub Artifact Attestationを追加。Authenticode署名の代替ではなく、初回GitHub workflow runは未検証。
+- Status: **Accepted for Public Preview / strongly mitigated** — unsigned表示、checksum、GitHub Artifact Attestationをrelease workflowへ追加し、repository-level immutable releasesを有効化。これらはAuthenticode署名の代替ではなく、tagを伴う実際のattestation生成は未実行。
 - Rule ID: `RELEASE-SIGN-001`
 - Evidence: NSISとMSIの `Get-AuthenticodeSignature` はともに `NotSigned`。SHA-256は同梱 `SHA256SUMS.txt` と一致しました。release notesとREADMEにも未署名が明記されています。
 - Impact: GitHub account/release自体が侵害された場合、同じ場所に置かれたinstallerとchecksumを同時に差し替えられるため、checksumだけではpublisher identityを証明できません。SmartScreen警告も残ります。
@@ -173,7 +173,7 @@
 ### TG-SEC-011 — 既存public commitのprovenanceとauthor metadata
 
 - Severity: **Informational / privacy and provenance**
-- Status: **Mitigated for future commits; published history unchanged** — repository-local Git identityはGitHub noreply addressへ変更。今回の変更はpull requestをGitHub上でsquash mergeし、mainへGitHub-verified commitとして入れる計画。既存5 commitの書換えはpublic history、open Dependabot PR、cloneを無効化するため未実施。
+- Status: **Mitigated for future commits; published history unchanged** — repository-local Git identityはGitHub noreply addressへ変更。hardening pull request #7はGitHub上でsquash mergeされ、main commitの署名はverified/valid。`main`はrequired signed commitsとstrict PR checksで保護済み。既存5 commitの書換えはpublic history、open Dependabot PR、cloneを無効化するため未実施。
 - Evidence: 現在公開済み5 commitはすべてunsignedで、全件のauthor metadataにnoreplyではないaddressが残っています。値自体はこの報告やlogへ再掲しません。
 - Recommendation: mainへrequired signed commitsを有効化し、以後はGitHub上のverified squash mergeまたは管理された署名keyを使います。既存metadataを完全に消す場合だけ、影響範囲を確認して別途明示許可の上でhistory rewrite / force-pushを行います。
 
@@ -190,7 +190,7 @@
 - dangerous authorityはnative dialogでturnごとに確認し、high-risk valueを永続化しません。
 - App Server process treeはWindows Job Object / Unix process groupへcontainします。
 - GitHub Actionsはfull SHA pin、least privilege、draft release、checksum、Artifact Attestationを組み合わせます。
-- GitHub repositoryはPrivate Vulnerability Reporting、secret scanning / push protection、Dependabot security updates、read-only workflow token、action allowlist、required SHA pinningを有効化。初回CodeQL default scanは成功し、CodeQL / secret / Dependabot open alertは0件。PRを必ずgateするため、Actions / JavaScript・TypeScript / Rustの明示的なCodeQL advanced workflowへ移行。
+- GitHub repositoryはPrivate Vulnerability Reporting、secret scanning / push protection、Dependabot security updates、read-only workflow token、action allowlist、required SHA pinning、immutable releasesを有効化。`main`は9個のApp-bound check、PR、signed commit、admin enforcement、linear history、conversation resolutionで保護し、force push / deletionを禁止。CodeQL / secret / Dependabot open alertは0件。Actions / JavaScript・TypeScript / Rustの明示的なCodeQL advanced workflowがPRをgateする。
 - installerのSHA-256は同梱manifestと一致しました。
 
 ## 実行した検証
@@ -212,8 +212,10 @@
 - Authenticode: NSIS / MSIとも `NotSigned`
 - SHA-256: NSIS `49CF25C80F793547B9C7897881BB2568034D585722ED0F564CEEC0AF18328288`、MSI `D58A6DDBEBB911D74F37258BAB895250764759750B6DDE3A870B9E6A100A9521`。release setの `SHA256SUMS.txt` と一致
 - clean candidate check: ignore適用後128ファイルだけを新規directoryへ複製し、`pnpm install --frozen-lockfile`、frontend 44 tests / production build、Rust 7 testsを生成物ゼロから再実行して **pass**
-- GitHub Actions static check: 5 workflowを含むGitHub YAML 9件がparse **pass**、34のaction useがfull SHA。9種類すべてのupstream commitが存在し、署名検証`verified=true`。
+- GitHub Actions static check: 5 workflowを含むGitHub YAML 9件がparse **pass**、28のaction useがfull SHA。8 upstream repositoryすべてのcommitが存在し、署名検証`verified=true`。`pnpm/setup` v2.0.2はannotated tagとcommitの両方が`verified=true / reason=valid`。
 - GitHub CodeQL initial setup: run `31710120357` **success**、open CodeQL alert 0、open secret scanning alert 0、open Dependabot alert 0
+- GitHub hardened PR #7: CI run `31712898233`、CodeQL run `31712898252`、Security Audit run `31712898256` **all success**。squash merge commit `0354da25e465937f5fd51315a178b967913b8b6d` はGitHub署名 `verified=true / reason=valid`。
+- GitHub bundle smoke run `31714221594`: 同じmerge commitからWindows x64 NSIS/MSI、macOS arm64/x64 app/dmgをbuild **all success**。3 artifact / 22 files / zero-length 0、Mach-O architecture・bundle ID・version一致。download済みartifact全体のMicrosoft Defender scan（修復無効）は **no threats found**、Windows 2 artifactは想定どおり`NotSigned`。
 
 ## 限界
 
