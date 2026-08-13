@@ -85,12 +85,10 @@ GitHub上でdraftを開き、次を確認するまでPublishしません。
 
 Artifact AttestationはGitHub Actions上のbuild provenanceを示しますが、Windows AuthenticodeやApple Developer IDの代替ではありません。unsigned / ad-hoc signedの表示は、attestationを追加した後も維持します。
 
-## Repository settings after creation
+## Repository protection state
 
-repository作成後、ownerがGitHub上で次を有効化・確認します。これらはlocal sourceから自動変更しません。
+2026-08-14時点で、Private Vulnerability Reporting、secret scanning / push protection、Dependabot alerts / security updates、read-only default `GITHUB_TOKEN`、selected Actions + full SHA pinningを有効化済みです。`main`はApp-bound required checks、pull request、signed commit、admin enforcement、linear history、conversation resolutionで保護し、force push / deletionを禁止しています。
 
-- Private vulnerability reporting
-- Dependabot alerts and security updates
-- default branch protection: required CI、review、force-push禁止
-- Actionsのdefault `GITHUB_TOKEN` permissionをread-only
-- tag / Releaseを作成できるroleの最小化
+Repository-level immutable releasesも有効です。draftは公開前に更新できますが、公開済みreleaseのtagとassetは変更・削除できません。誤りが見つかった場合は既存releaseを書き換えず、新しいversionで訂正します。[GitHub: Preventing changes to releases](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/establish-provenance-and-integrity/prevent-release-changes)
+
+これらの設定変更はGitHub側の外部状態です。sourceだけをcloneしても自動再現されないため、maintainerは公開前にAPI/UIから実状態を読み戻してください。
