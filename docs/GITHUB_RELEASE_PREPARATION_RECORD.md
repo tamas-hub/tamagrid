@@ -86,6 +86,8 @@ Immediately before repository creation, the organization and unused repository p
 - Pull request #7 was squash-merged as `0354da25e465937f5fd51315a178b967913b8b6d`; GitHub reports the merge commit signature as verified and valid.
 - Manual bundle-smoke run [31714221594](https://github.com/tamas-hub/tamagrid/actions/runs/31714221594) succeeded from that exact merge commit on Windows x64, macOS arm64 and macOS x64. It retained three nonempty seven-day artifacts containing NSIS, MSI, both DMGs and both `.app` bundles; all 22 downloaded files were nonzero. The macOS binaries identify as the expected Mach-O arm64/x86_64 architectures, both bundle identifiers and versions are `io.github.tamas-hub.tamagrid` / `0.5.0`, and the Windows artifacts remain intentionally `NotSigned`.
 - Microsoft Defender scanned the complete downloaded workflow-artifact tree with remediation disabled and reported no threats. SHA-256 values were independently recorded for the four distributable containers below. This proves the inspected temporary artifacts, not a future release build.
+- Supply-chain pull request [#9](https://github.com/tamas-hub/tamagrid/pull/9) and Intel-macOS fallback pull request [#10](https://github.com/tamas-hub/tamagrid/pull/10) each passed all nine protected checks from GitHub-signed source commits. Their squash commits `282d089670fb4582a30db62e141ca6996fe0c801` and `ab7a9d1b087857a76eb27673c5b29961e4dbd3f6` are GitHub-verified and their trees exactly match the reviewed source commits.
+- Final fallback bundle-smoke run [31718238244](https://github.com/tamas-hub/tamagrid/actions/runs/31718238244) succeeded on Windows x64, macOS arm64 and macOS x64 from the exact pull-request tree later merged to `main`. The downloaded result again contained three nonempty artifacts and 22 nonempty files. Mach-O architectures, bundle identifiers and version `0.5.0` matched; Windows remained intentionally `NotSigned`; Microsoft Defender reported no threats with remediation disabled.
 
 | Bundle-smoke deliverable | SHA-256 |
 | --- | --- |
@@ -93,6 +95,15 @@ Immediately before repository creation, the organization and unused repository p
 | `TamaGrid_0.5.0_x64_en-US.msi` | `7D06872BC27C5AF58DF630B50C26BACF1BAF3D4C40E5A1FDB41F144BFAD75B18` |
 | `TamaGrid_0.5.0_aarch64.dmg` | `AF990E34BD767751DF538FD29871128D9B85294279CA736BBD5BB8B8D8C7C520` |
 | `TamaGrid_0.5.0_x64.dmg` | `2AEDC18907670B201B4D59E40E8DA7834CA2A9CE14BC6089762E8B699C153FA4` |
+
+Final Intel-fallback bundle-smoke hashes:
+
+| Deliverable | SHA-256 |
+| --- | --- |
+| `TamaGrid_0.5.0_x64-setup.exe` | `D98840A17AF4A7CA3B11F0C77EAD0E59CBA986A804869C455CED598B28C1F834` |
+| `TamaGrid_0.5.0_x64_en-US.msi` | `57A40841CC7BCE6AE52D8EE9A8927C04C3288FBB3416BE32DDB899BCA10C94DE` |
+| `TamaGrid_0.5.0_aarch64.dmg` | `BEC8B2DBC8798B114485AC9C7BC052BFCAD351209B12416E3A95234F5191D233` |
+| `TamaGrid_0.5.0_x64.dmg` | `259859B3406D437200AC75D7792476C3054CE918E0742E755A2D1BDE4D36653C` |
 
 ## External actions performed
 
@@ -102,7 +113,7 @@ Immediately before repository creation, the organization and unused repository p
 - The first CI run failed before project commands because `pnpm/action-setup` v6 attempted to self-update through broken `pnpm@11.12.0`. Explicitly setting that broken version did not resolve the upstream bootstrap failure.
 - Confirmed through npm package metadata that `pnpm@11.12.0` was deprecated as broken, upgraded to `11.21.0`, repeated the local frozen-install/audit/check suite successfully, and pushed the corrective commit `61cc542da45466046889e515d3da74b1bdbf89d9`.
 - Verified the public repository is `PUBLIC`, non-empty, uses `main` as the default branch, and exposes the expected README, MIT license and security policy.
-- GitHub automatically evaluated the checked-in Dependabot configuration and opened six update pull requests (`#1` through `#6`). No dependency update was merged, edited or closed and no Dependabot-generated change was accepted.
+- GitHub automatically evaluated the checked-in Dependabot configuration and opened six update pull requests (`#1` through `#6`). The obsolete `pnpm/action-setup` update `#1` was closed after migration to its official successor; `#2` through `#6` remain unmerged for separate compatibility review. No Dependabot-generated dependency change was accepted automatically.
 - Enabled Private Vulnerability Reporting.
 - Enabled secret scanning and push protection. GitHub accepted the request but kept validity checks and non-provider patterns disabled because those controls are not available for this repository.
 - Enabled Dependabot vulnerability alerts and security updates.
@@ -111,13 +122,14 @@ Immediately before repository creation, the organization and unused repository p
 - Configured CodeQL default setup with the extended query suite, remote-and-local threat model, and GitHub's detected Actions/JavaScript/TypeScript/Rust languages. Setup run [31710120357](https://github.com/tamas-hub/tamagrid/actions/runs/31710120357) succeeded.
 - The first hardened PR had no CodeQL check from default setup, so default setup was disabled and replaced with a checked-in advanced workflow. It analyzes Actions, JavaScript/TypeScript, and Rust on pull requests, `main`, and a weekly schedule with the security-extended query suite; the CodeQL Action is pinned to the verified v4.37.7 commit.
 - Added twelve repository topics describing Codex App Server, Tauri/Rust/React/TypeScript, local-first desktop development, Windows and macOS.
-- Post-change verification found zero open CodeQL, secret-scanning and Dependabot alerts. No alert was dismissed or hidden.
+- Final verification found zero open CodeQL, secret-scanning and Dependabot alerts. Dependabot surfaced `GHSA-wrw7-89jp-8q8g` for `glib 0.18.5` in the cross-platform lockfile. Locked target graphs prove it unreachable on all three supported Windows/macOS targets and reachable only through Tauri GTK on unsupported Linux, so alert `#1` was classified `not_used` with that exact rationale. The first overlong dismissal comment was rejected without changing state; the accepted 267-character comment, reason and dismissed state were read back. RustSec CI continues monitoring the advisory and the classification must be revisited before adding Linux support.
 - The API first rejected an out-of-order selected-action update and two invalid CodeQL enum values; the requests were corrected without disabling already-applied controls. A transient empty-input error occurred during the topic update and the same intended payload succeeded on retry. Final state was read back after each correction.
 - The first advanced CodeQL run stopped at workflow startup because `github/codeql-action@*` did not match the nested `init` and `analyze` actions. No code executed. The broad ineffective pattern was replaced with the two exact sub-action patterns; startup-failure runs cannot be retried, so a normal follow-up commit retriggered the PR workflows.
 - Squash-merged hardened pull request [#7](https://github.com/tamas-hub/tamagrid/pull/7) only after all nine final-head required checks succeeded. Direct merge commits and rebase merges were disabled; squash merge is the only enabled merge mode and merged branches are deleted automatically.
 - Protected `main` with strict status checks bound to their GitHub App IDs: CodeQL Actions, JavaScript/TypeScript and Rust analysis, the GitHub Advanced Security CodeQL summary, Dependency Review, frontend, Windows/macOS native CI, and RustSec. Pull requests, stale-review dismissal, admin enforcement, linear history, conversation resolution and signed commits are required; force pushes and deletion are disabled. A first API payload combining legacy contexts with App-bound checks was rejected with `422`; the corrected checks-only payload succeeded and the complete protection object was read back.
 - Enabled immutable releases for future releases. This does not create a tag or release; it prevents mutation after a release is published while still allowing a draft to be assembled and inspected.
 - The first post-migration bundle-smoke run [31717777501](https://github.com/tamas-hub/tamagrid/actions/runs/31717777501) exposed an Intel-macOS-only `pnpm/setup` failure before project code ran. The check annotation identifies upstream `pnpm/pnpm#11423`: pnpm v11's Node SEA binary is not usable on `darwin-x64`. The fallback keeps version 11.21.0, does not adopt the pnpm 12 release candidate, and does not weaken action SHA pinning.
+- Pull request #10 and bundle-smoke run 31718238244 verified the targeted fallback. `pnpm/setup` remains active on Windows and Apple Silicon; only Intel macOS uses pinned `actions/setup-node` plus exact `pnpm@11.21.0` from npm with lifecycle scripts disabled.
 
 Latest local release candidate directory (a sibling of the repository and not part of the public source candidate):
 

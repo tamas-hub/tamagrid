@@ -103,7 +103,7 @@
 ### TG-SEC-006 — Release workflowがmutable action tagとworkflow-wide write tokenを使う
 
 - Severity: **Medium**
-- Status: **Resolved in workflow source; first GitHub run pending** — actionを実在確認済みのfull SHAへpin、checkoutのcredential persistenceを無効化し、workflow defaultを`contents: read`へ縮小。write / OIDC / attestation権限を必要jobだけへ付与し、tag qualityへRust fmt / clippy / test、artifact + release metadata + checksum attestation、Dependabotを追加。
+- Status: **Resolved and CI/bundle verified** — actionを実在確認済みのfull SHAへpin、checkoutのcredential persistenceを無効化し、workflow defaultを`contents: read`へ縮小。write / OIDC / attestation権限を必要jobだけへ付与し、tag qualityへRust fmt / clippy / test、artifact + release metadata + checksum attestation、Dependabotを追加。protected PRと3-platform bundleで検証済み。tag release / attestation生成だけは未実行。
 - Rule ID: `REACT-SUPPLY-001`
 - Location:
   - `.github/workflows/ci.yml:19-21`
@@ -159,7 +159,7 @@
 - Rule ID: `RUSTSEC-MAINT-001`
 - Evidence: Windows x64、macOS x64、macOS arm64のtarget-aware dependency graphを照合すると、各targetで5件の `INFO Unmaintained` が検出されました。`unic-char-property`、`unic-char-range`、`unic-common`、`unic-ucd-ident`、`unic-ucd-version` で、dependency pathは `tauri-utils -> urlpattern -> unic-ucd-ident` です。既知のexploit advisoryではありません。[RUSTSEC-2025-0081](https://rustsec.org/advisories/RUSTSEC-2025-0081.html) / [RUSTSEC-2025-0100](https://rustsec.org/advisories/RUSTSEC-2025-0100.html)
 - Recommendation: TamaGrid側で直接置換せず、Tauri/tauri-utilsの更新でupstream解消を追跡します。CIへRustSec/OSV監査を追加し、unmaintained warningとvulnerabilityを別扱いにしてください。
-- Audit nuance: Cargo.lock全体のRustSec監査は、未対応Linux専用のGTK graphにある`glib` unsound warning `RUSTSEC-2024-0429`も報告します。`cargo tree`でWindows/macOS 3 targetから`glib`が到達不能であることを確認したため、CIではこの1件だけ理由付きignoreとし、実vulnerability、将来のunsound、yanked crateは失敗させます。
+- Audit nuance: Cargo.lock全体のRustSec監査は、未対応Linux専用のGTK graphにある`glib` unsound warning `RUSTSEC-2024-0429` / `GHSA-wrw7-89jp-8q8g`も報告します。locked `cargo tree`でWindows x64 / macOS arm64 / macOS x64から`glib`が到達不能、Linuxだけ到達可能と再確認しました。CIではこの1件だけ理由付きignoreとし、実vulnerability、将来のunsound、yanked crateは失敗させます。GitHub Dependabot alertも同じtarget evidenceで`not_used`分類し、理由を保存。Linux対応前には再評価が必要です。
 
 ### TG-SEC-010 — Windows installerはAuthenticode未署名
 
@@ -173,7 +173,7 @@
 ### TG-SEC-011 — 既存public commitのprovenanceとauthor metadata
 
 - Severity: **Informational / privacy and provenance**
-- Status: **Mitigated for future commits; published history unchanged** — repository-local Git identityはGitHub noreply addressへ変更。hardening pull request #7はGitHub上でsquash mergeされ、main commitの署名はverified/valid。`main`はrequired signed commitsとstrict PR checksで保護済み。既存5 commitの書換えはpublic history、open Dependabot PR、cloneを無効化するため未実施。
+- Status: **Mitigated for future commits; published history unchanged** — repository-local Git identityはGitHub noreply addressへ変更。hardening pull requests #7、#9、#10はGitHub上でsquash mergeされ、main commitsの署名はverified/valid。`main`はrequired signed commitsとstrict PR checksで保護済み。既存5 commitの書換えはpublic history、open Dependabot PR、cloneを無効化するため未実施。
 - Evidence: 現在公開済み5 commitはすべてunsignedで、全件のauthor metadataにnoreplyではないaddressが残っています。値自体はこの報告やlogへ再掲しません。
 - Recommendation: mainへrequired signed commitsを有効化し、以後はGitHub上のverified squash mergeまたは管理された署名keyを使います。既存metadataを完全に消す場合だけ、影響範囲を確認して別途明示許可の上でhistory rewrite / force-pushを行います。
 
@@ -190,7 +190,7 @@
 - dangerous authorityはnative dialogでturnごとに確認し、high-risk valueを永続化しません。
 - App Server process treeはWindows Job Object / Unix process groupへcontainします。
 - GitHub Actionsはfull SHA pin、least privilege、draft release、checksum、Artifact Attestationを組み合わせます。
-- GitHub repositoryはPrivate Vulnerability Reporting、secret scanning / push protection、Dependabot security updates、read-only workflow token、action allowlist、required SHA pinning、immutable releasesを有効化。`main`は9個のApp-bound check、PR、signed commit、admin enforcement、linear history、conversation resolutionで保護し、force push / deletionを禁止。CodeQL / secret / Dependabot open alertは0件。Actions / JavaScript・TypeScript / Rustの明示的なCodeQL advanced workflowがPRをgateする。
+- GitHub repositoryはPrivate Vulnerability Reporting、secret scanning / push protection、Dependabot security updates、read-only workflow token、10-pattern action allowlist、required SHA pinning、immutable releasesを有効化。`main`は9個のApp-bound check、PR、signed commit、admin enforcement、linear history、conversation resolutionで保護し、force push / deletionを禁止。CodeQL / secret / Dependabot open alertは0件。Dependabotにはsupported targetで未使用と実証した`glib` alertが1件だけ理由付きdismissed。Actions / JavaScript・TypeScript / Rustの明示的なCodeQL advanced workflowがPRをgateする。
 - installerのSHA-256は同梱manifestと一致しました。
 
 ## 実行した検証
@@ -216,6 +216,9 @@
 - GitHub CodeQL initial setup: run `31710120357` **success**、open CodeQL alert 0、open secret scanning alert 0、open Dependabot alert 0
 - GitHub hardened PR #7: CI run `31712898233`、CodeQL run `31712898252`、Security Audit run `31712898256` **all success**。squash merge commit `0354da25e465937f5fd51315a178b967913b8b6d` はGitHub署名 `verified=true / reason=valid`。
 - GitHub bundle smoke run `31714221594`: 同じmerge commitからWindows x64 NSIS/MSI、macOS arm64/x64 app/dmgをbuild **all success**。3 artifact / 22 files / zero-length 0、Mach-O architecture・bundle ID・version一致。download済みartifact全体のMicrosoft Defender scan（修復無効）は **no threats found**、Windows 2 artifactは想定どおり`NotSigned`。
+- GitHub supply-chain PR #9 / Intel fallback PR #10: 各9 required checks **all success**。GitHub-signed source commitsからsquash mergeされ、main commits `282d089670fb4582a30db62e141ca6996fe0c801` / `ab7a9d1b087857a76eb27673c5b29961e4dbd3f6` は`verified=true / reason=valid`、review済みtreeと一致。
+- Final bundle smoke run `31718238244`: Intel fallbackを含むWindows x64 / macOS arm64 / macOS x64 **all success**。3 artifact / 22 files / zero-length 0、architecture・bundle metadata・version・hash確認、Defender **no threats found**、Windows `NotSigned`を再確認。
+- Dependabot alert #1 (`GHSA-wrw7-89jp-8q8g`): locked target graphでWindows/macOS 3 targetから`glib 0.18.5`到達不能、unsupported Linuxのみ到達可能を確認し、理由付き`not_used`分類。open CodeQL / secret / Dependabot alertは各0。
 
 ## 限界
 

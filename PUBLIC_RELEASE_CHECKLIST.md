@@ -48,6 +48,8 @@ This checklist separates verified source/repository work from the remaining rele
 - [x] Run the hardened CI on pull request #7 and confirm Dependency Review, RustSec, CodeQL for three languages, Windows, and macOS jobs succeed
 - [x] Confirm GitHub recognizes every pinned Action used by CI and bundle smoke
 - [x] Run unsigned bundle smoke from the hardened main commit on Windows x64, macOS arm64 and macOS x64; inspect all three nonempty workflow artifacts and verify expected package/architecture metadata
+- [x] Re-run all three bundles after the Intel-macOS pnpm fallback; inspect 3 artifacts / 22 nonempty files, verify architecture/metadata/hashes, and scan the downloaded tree with Microsoft Defender
+- [x] Classify `glib` advisory `GHSA-wrw7-89jp-8q8g` as not used only after locked target graphs prove it unreachable on supported Windows/macOS targets; keep RustSec monitoring and reassess before Linux support
 - [ ] Confirm draft-release Artifact Attestation permissions and verify every attestation after an explicitly authorized tag run
 - [ ] Review repository description, topics, social preview, license detection, and README rendering (description/topics/license completed; social preview and final rendered README remain)
 - [ ] Perform manual Windows UI smoke tests on an installed build
@@ -65,4 +67,5 @@ This checklist separates verified source/repository work from the remaining rele
 - Repository-level immutable releases prevent modification after publication, but do not establish publisher identity or replace platform code signing.
 - High-frequency deltas are bounded/coalesced before the Tauri Channel and again in the renderer. The Channel's internal queue is not directly configurable, and event-flood stress testing remains open.
 - Tauri currently brings five `unic-*` unmaintained advisories through `tauri-utils -> urlpattern`; no severity-bearing exploit advisory was identified in the Windows/macOS target-aware scan.
+- Cargo.lock includes Tauri's Linux-only GTK `glib 0.18.5`; its unsoundness advisory is unreachable on all supported release targets and is classified `not_used`, but must be reassessed if Linux becomes supported.
 - The public repository's five pre-hardening commits are unsigned and contain a non-noreply author address in immutable commit metadata. Future local commits use the repository-specific GitHub noreply address; rewriting published history requires a separate destructive-operation decision.
