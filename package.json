@@ -20,9 +20,9 @@
     "desktop-app",
     "developer-tools"
   ],
-  "packageManager": "pnpm@11.12.0",
+  "packageManager": "pnpm@11.21.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "type": "module",
   "scripts": {
