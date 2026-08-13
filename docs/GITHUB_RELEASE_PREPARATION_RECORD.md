@@ -95,12 +95,13 @@ Immediately before repository creation, the organization and unused repository p
 - Enabled secret scanning and push protection. GitHub accepted the request but kept validity checks and non-provider patterns disabled because those controls are not available for this repository.
 - Enabled Dependabot vulnerability alerts and security updates.
 - Changed the default workflow token from write to read and kept workflow pull-request approval disabled.
-- Restricted Actions to nine explicit repository patterns, disabled broad GitHub-owned/verified-publisher wildcards, and required full commit SHA pinning. The allowlist covers only the actions referenced by the checked-in workflows and GitHub CodeQL default setup.
+- Restricted Actions to ten explicit action/sub-action patterns, disabled broad GitHub-owned/verified-publisher wildcards, and required full commit SHA pinning. The allowlist covers only the actions referenced by the checked-in workflows; CodeQL permits `init` and `analyze` separately rather than a broader repository wildcard.
 - Configured CodeQL default setup with the extended query suite, remote-and-local threat model, and GitHub's detected Actions/JavaScript/TypeScript/Rust languages. Setup run [31710120357](https://github.com/tamas-hub/tamagrid/actions/runs/31710120357) succeeded.
 - The first hardened PR had no CodeQL check from default setup, so default setup was disabled and replaced with a checked-in advanced workflow. It analyzes Actions, JavaScript/TypeScript, and Rust on pull requests, `main`, and a weekly schedule with the security-extended query suite; the CodeQL Action is pinned to the verified v4.37.7 commit.
 - Added twelve repository topics describing Codex App Server, Tauri/Rust/React/TypeScript, local-first desktop development, Windows and macOS.
 - Post-change verification found zero open CodeQL, secret-scanning and Dependabot alerts. No alert was dismissed or hidden.
 - The API first rejected an out-of-order selected-action update and two invalid CodeQL enum values; the requests were corrected without disabling already-applied controls. A transient empty-input error occurred during the topic update and the same intended payload succeeded on retry. Final state was read back after each correction.
+- The first advanced CodeQL run stopped at workflow startup because `github/codeql-action@*` did not match the nested `init` and `analyze` actions. No code executed. The broad ineffective pattern was replaced with the two exact sub-action patterns; startup-failure runs cannot be retried, so a normal follow-up commit retriggered the PR workflows.
 
 Latest local release candidate directory (a sibling of the repository and not part of the public source candidate):
 
