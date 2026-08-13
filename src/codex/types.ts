@@ -46,7 +46,6 @@ export interface DetectionResult {
 
 export interface ConnectionInfo extends DetectionResult {
   generation: number;
-  initialize: JsonObject;
   account: JsonObject;
   models: unknown[];
   rateLimits?: unknown;

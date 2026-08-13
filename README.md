@@ -8,21 +8,21 @@ Run and supervise up to four local Codex App Server threads in one desktop cockp
 
 > TamaGrid is an independent open-source project and is not affiliated with or endorsed by OpenAI.
 
-> **Project status:** Public Preview (`v0.5.0`). Release binaries are currently unsigned. Read the installation warning and verify `SHA256SUMS.txt` before running them.
+> **Project status:** Public source preview (`v0.5.0`). No public installer has been released yet. Future preview binaries will be unsigned and must pass the documented manual release gate.
 
-[Download from GitHub Releases](../../releases)
+[View release status](../../releases)
 
 ![TamaGrid showing four Codex tasks in a 2x2 cockpit](docs/screenshots/tamagrid-preview.png)
 
 ## Download
 
-GitHub Releaseでは次のartifactを提供します。
+公開済みのinstallerはまだありません。最初のGitHub Releaseを公開する場合は、次のartifactを提供する予定です。
 
 - Windows `TamaGrid_*_x64-setup.exe` — 通常の対話型installer（推奨）
 - Windows `TamaGrid_*_x64_en-US.msi` — MSIを必要とする環境向け
 - macOS `.dmg` / `.app` — ad-hoc署名、Developer ID notarizationなし
 
-Windows版はAuthenticode未署名のため、Microsoft Defender SmartScreenが警告する場合があります。SmartScreenを無効化せず、GitHub Releaseの配布元と `SHA256SUMS.txt` を確認し、内容を信頼できる場合だけ実行してください。企業管理PCではpolicyにより実行できない場合があります。
+予定しているWindows版はAuthenticode未署名のため、Microsoft Defender SmartScreenが警告する場合があります。SmartScreenを無効化せず、公開後はGitHub Releaseの配布元と `SHA256SUMS.txt` を確認し、内容を信頼できる場合だけ実行してください。企業管理PCではpolicyにより実行できない場合があります。
 
 PowerShellでchecksumと署名状態を確認できます。
 
@@ -50,7 +50,7 @@ TamaGridは一般的なチャットクライアントではなく、複数の開
 - Paneのドラッグ＆ドロップ並べ替えと、キーボードの `Alt` + 矢印キーによる代替操作。並び順も保存
 - Codexの保存済みthreadを検索・展開し、選択Paneでresume
 - `thread/name/set` / `thread/name/updated` と保存履歴を反映した、編集可能な実際のchat名表示。未命名時だけ「新しいチャット」と表示
-- Codex native executableの自動検出と、Rust側native file pickerによる明示選択。WebViewから実行pathを指定不可
+- Codex native executableの自動検出とRust側native file picker。初回・path変更・内容のSHA-256変更時は、実行前にnative確認が必要。WebViewから実行pathを指定不可
 - 起動時・再接続時・認証変更時・手動操作での動的model discovery
 - App Serverが提示したreasoning effortだけを表示
 - Aurora、Dark、Light、Greenから選んで保存できるグラスモーフィズムCockpit UI
@@ -100,7 +100,7 @@ User
             └─ user's threads
 ```
 
-Windowsではnative `codex.exe` の絶対pathを使用します。手動変更はOSのnative file pickerと実行前確認を必須とし、WebViewやlocalStorageからpathを実行できません。`.cmd` や `.ps1` をshell経由で実行せず、任意の追加引数も受け付けません。接続は現在stdioのみです。
+Windowsではnative `codex.exe` の絶対pathを使用します。自動検出・手動選択のどちらも、初回、path変更、またはfileのSHA-256変更時はOS native dialogで実行前確認を要求します。承認したcanonical pathとfingerprintが一致する間だけ再確認を省略し、実行直前にもfileが変わっていないことを再検証します。WebViewやlocalStorageからpathを実行できず、`.cmd` や `.ps1` をshell経由で実行せず、任意の追加引数も受け付けません。接続は現在stdioのみです。
 
 Settingsの **Test connection** はexecutableの存在・実行可否、Codex version、App Serverの起動、`initialize`、`account/read`、`model/list` を確認します。対応するCodexでは `account/rateLimits/read` も取得し、非対応の旧版では接続を妨げず利用量を未取得として表示します。
 
@@ -126,7 +126,7 @@ Model名やreasoning levelはTamaGridへ固定していません。接続中はA
 
 ## Windows installation
 
-0.5.0はPublic Previewです。tagged releaseではGitHub Actionsがunsigned NSIS / MSI installer、`SHA256SUMS.txt`、GitHub Artifact Attestationを含むdraft prereleaseを生成します。Release ownerがartifact、checksum、provenance、説明を確認してから手動公開する構成です。
+0.5.0はPublic source previewで、installerは未公開です。将来tagを明示的にpushした場合だけ、GitHub Actionsがunsigned NSIS / MSI installer、`SHA256SUMS.txt`、GitHub Artifact Attestationを含むdraft prereleaseを生成します。Release ownerがartifact、checksum、provenance、説明を確認するまで公開されません。
 
 初回起動後にSettingsを開き、**Auto detect** または **Choose executable** でnative `codex.exe` を選び、**Test connection** を実行します。Microsoft Defender SmartScreenが未署名buildを警告する場合があります。入手元とchecksumを確認して判断してください。
 
@@ -144,17 +144,19 @@ TamaGridとCodexは別々に更新します。Codexを更新したあとTamaGrid
 
 ## Privacy
 
-通信経路は `User → TamaGrid → local Codex App Server → OpenAI` です。TamaGrid開発者のrelay serverはなく、独自analytics・telemetryもありません。WebViewのlocalStorageへ保存するのはlayoutとPane順、theme、表示言語、font size、送信キー設定、安全なPane設定とchat名、thread ID、model metadata cacheだけです。native pickerで承認したCodex executable pathとウィンドウ位置・サイズ・表示状態はRust側のapp configへ分離保存します。会話本文、利用量、credential、pending approval、`never`、`danger-full-access` は保存しません。
+通信経路は `User → TamaGrid → local Codex App Server → OpenAI` です。TamaGrid開発者のrelay serverはなく、独自analytics・telemetryもありません。WebViewのlocalStorageへ保存するのはlayoutとPane順、theme、表示言語、font size、送信キー設定、安全なPane設定とchat名、thread ID、model metadata cacheだけです。承認したCodex executableのcanonical pathとSHA-256 fingerprint、ウィンドウ位置・サイズ・表示状態はRust側のapp configへ分離保存します。会話本文、利用量、credential、pending approval、`never`、`danger-full-access` は保存しません。
 
 ## Security
 
-- custom executableはnative pickerで選んだ絶対pathのnative fileに限定し、shellを介さず固定引数 `app-server` で起動
+- Codex executableはcanonicalなnative fileに限定し、初回・path変更・SHA-256変更時のnative確認と実行直前のfingerprint再検証を行い、shellを介さず固定引数 `app-server` で起動
 - WebViewからraw method / paramsを渡せないmethod別の型付きRust IPCと、入力長・enum・absolute path検証
 - `never` / `danger-full-access` は送信ごとのnative確認が必要で、thread restore時はsafe baselineへ戻す
 - command / file approvalはcommand、cwd、理由、network、解析操作、変更内容を表示し、ユーザーのApproveまたはDenyを必須化
 - PR準備は内容案までに制限し、commit、push、remote branch作成、PR作成は明示確認なしに実行しない
-- stderrをprotocol stdoutと分離し、credentialらしいdiagnosticをredact
+- `account/read` responseは認証状態に必要なtype / planだけへ縮小してWebViewへ渡し、emailやtokenを転送しない
+- stderrをprotocol stdoutと分離し、credential、email、user directoryらしいdiagnosticをredact
 - JSONL frame上限、request timeout、exact request-ID correlation、process generationでmalformed / stale eventを隔離
+- 高頻度deltaはRust側で20ms単位にcoalesceし、1 MiB / 256 eventのhard boundを設け、terminal / approval前に順序を保ってflush。全event送信も直列化
 - Windows Job Object / Unix process group、active turnのbest-effort interrupt、stdin close、bounded waitで子process treeを終了
 - restrictive Content Security Policy、remote transportなし、独自credential保管なし
 
@@ -207,7 +209,7 @@ pnpm install --frozen-lockfile
 pnpm tauri build
 ```
 
-WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local buildには各OSのTauri prerequisitesが必要です。GitHub Actionsはpush / pull requestでquality checkとWindows / macOS native buildを行い、`vX.Y.Z` tagでchecksum・build provenance・production JavaScript SBOM付きdraft prereleaseを作る構成です。third-party actionはfull commit SHAへ固定しています。release手順は [docs/RELEASING.md](docs/RELEASING.md) を参照してください。
+WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local buildには各OSのTauri prerequisitesが必要です。GitHub Actionsはpush / pull requestでquality check、依存差分review、RustSec監査、Windows / macOS native buildを行います。手動のBundle smoke workflowでは3 platformの実bundleを7日だけ保持して確認できます。`vX.Y.Z` tagはchecksum・build provenance・production JavaScript SBOM付きdraft prereleaseだけを作り、自動公開しません。third-party actionはfull commit SHAへ固定しています。release手順は [docs/RELEASING.md](docs/RELEASING.md) を参照してください。
 
 ## Contributing
 

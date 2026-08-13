@@ -12,9 +12,11 @@ TamaGridのWebViewは信頼済みUIではありますが、security boundaryと�
 
 ### Process execution
 
-- executableの手動変更はRustから開くnative file pickerと実行前のnative confirmationを必須化
+- 自動検出・手動選択のどちらも、初回・path変更・SHA-256変更時はRust側native confirmationを必須化
 - WebView、Tauri command argument、localStorageから実行pathを受け付けない
-- 承認したcanonical pathはWebView storageではなくOSのTamaGrid app configへ保存
+- 承認したcanonical pathとSHA-256 fingerprintはWebView storageではなくOSのTamaGrid app configへ保存
+- `--version` 検証後と `app-server` 起動直前にfingerprintを再計算し、途中でfileが変わった場合は実行しない
+- `--version` のstdout / stderrは各64 KiB、実行時間は8秒へ制限し、超過時はchildを終了
 - Windows custom pathはnative `.exe` の絶対pathに限定
 - shell、`cmd /c`、PowerShell wrapperを使わず、argvはTamaGridが固定する `app-server` だけ
 - stdin / stdout / stderrを分離し、stdoutだけをprotocolとしてparse
@@ -34,7 +36,8 @@ native pickerで選択したfile自体の安全性はTamaGridだけでは証明�
 - timeout、EOF、crash時にpending response、approval、active-turn trackingを破棄
 - reconnect generationでstale reader / eventを隔離
 - unknown server requestを自動承認しない
-- high-frequency deltaはUI queueでcoalesceし、1,024 event到達時に同期flushする。terminal / approval eventはdropしない
+- high-frequency deltaはRust側で20ms単位にcoalesceし、合計1 MiB / 256 event、1 event 128 KiBへhard-boundする。terminal / approval前に必ずflushし、全eventのsequence割当と送信を直列化する
+- WebView側も1,024 event上限とdelta coalescingを持ち、terminal / approval eventはdropしない
 
 ### Approval and elevated authority
 
@@ -56,7 +59,7 @@ TamaGridはCodexがturn内で生成するcommand execution itemを表示・承�
 
 ### Data and credentials
 
-TamaGridはOpenAI credentialを要求・保存しません。account statusとrate-limit metadataはCodexから読み取りますが、emailや利用量snapshotをpersistenceへ保存しません。独自telemetryはなく、App Server stderrにcredential markerがある行はredactします。
+TamaGridはOpenAI credentialを要求・保存しません。`initialize` responseは互換性確認にだけ使ってWebViewへ転送せず、`account/read` responseはRust側でtype / plan / authentication requirementだけへ縮小し、Codex home、email、token、未知fieldをWebViewへ渡しません。rate-limit metadataはCodexから読み取りますが、利用量snapshotをpersistenceへ保存しません。独自telemetryはなく、App Server stderrにcredential、email、user directory markerがある行はredactします。
 
 WebView storageへ会話本文、command output、diff、pending approval、credential、custom executable path、高権限policyは保存しません。
 
@@ -73,6 +76,8 @@ Tauri windowはlocal bundleだけを読み込み、Content Security Policyでdef
 - tag releaseでもfrontend check、Rust fmt、clippy、testをgateにする
 - Windows / macOS artifactとchecksum manifestへGitHub Artifact Attestationを生成
 - Dependabotでnpm、Cargo、GitHub Actionsを週次確認
+- pull requestでmoderate以上の新規dependency riskをDependency Reviewにより拒否し、Cargo.lockをRustSecでpush / PR / 週次監査
+- manual Bundle smokeでWindows x64、macOS Apple Silicon / Intelの実bundleを生成し、短期artifactとして人が確認可能
 - releaseはdraft prereleaseで停止し、checksum、attestation、unsigned表記を人が確認してから公開
 
 ## Residual risks
@@ -82,6 +87,6 @@ Tauri windowはlocal bundleだけを読み込み、Content Security Policyでdef
 - ユーザーが内容を確認してapprovalしたcommandやfile change
 - Authenticode未署名 / Developer ID未notarized preview binaryに対するOS警告
 - Tauri transitive dependencyに残るunmaintained Unicode crate群（既知vulnerabilityは別途継続監視）
-- Rust readerからTauri Channelまでの内部queueはhard-boundedではない。WebView受信queueはbounded/coalescedだが、極端な出力量へのstress testは継続課題
+- Tauri Channel自体の内部実装はTamaGridからhard-boundできない。送信前delta bufferとWebView受信queueはbounded/coalesced化したが、極端なevent floodのruntime stress testは継続課題
 
 SmartScreenやGatekeeperを無効化せず、release origin、SHA-256、GitHub attestationを確認してください。Artifact AttestationはOS code signingの代替ではありません。

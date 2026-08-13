@@ -104,10 +104,32 @@ mod process_tree {
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_PROTOCOL_LINE: usize = 16 * 1024 * 1024;
 const MAX_DIAGNOSTIC_LINE: usize = 64 * 1024;
+const DELTA_FLUSH_INTERVAL: Duration = Duration::from_millis(20);
+const MAX_BUFFERED_DELTA_BYTES: usize = 1024 * 1024;
+const MAX_BUFFERED_DELTA_EVENTS: usize = 256;
+const MAX_COALESCED_DELTA_BYTES: usize = 128 * 1024;
 const SUPPORTED_SERVER_REQUESTS: &[&str] = &[
     "item/commandExecution/requestApproval",
     "item/fileChange/requestApproval",
 ];
+const COALESCED_DELTA_METHODS: &[&str] = &[
+    "item/agentMessage/delta",
+    "item/plan/delta",
+    "item/reasoning/summaryTextDelta",
+    "item/commandExecution/outputDelta",
+];
+
+#[derive(Default)]
+struct DeltaBuffer {
+    events: Vec<BufferedDelta>,
+    bytes: usize,
+}
+
+struct BufferedDelta {
+    key: String,
+    message: Value,
+    bytes: usize,
+}
 
 #[derive(Debug, Error)]
 pub enum TransportError {
@@ -146,10 +168,13 @@ pub struct StdioTransport {
     pending: Mutex<HashMap<String, PendingResponse>>,
     server_requests: Mutex<HashMap<String, String>>,
     active_turns: Mutex<HashMap<String, String>>,
+    delta_buffer: Mutex<DeltaBuffer>,
+    delta_delivery: Mutex<()>,
     events: Channel<AppServerEvent>,
     generation: u64,
     next_request_id: AtomicU64,
     sequence: AtomicU64,
+    emit_lock: std::sync::Mutex<()>,
     closed: AtomicBool,
     #[cfg(windows)]
     process_job: process_tree::ProcessJob,
@@ -232,10 +257,13 @@ impl StdioTransport {
             pending: Mutex::new(HashMap::new()),
             server_requests: Mutex::new(HashMap::new()),
             active_turns: Mutex::new(HashMap::new()),
+            delta_buffer: Mutex::new(DeltaBuffer::default()),
+            delta_delivery: Mutex::new(()),
             events,
             generation,
             next_request_id: AtomicU64::new(1),
             sequence: AtomicU64::new(1),
+            emit_lock: std::sync::Mutex::new(()),
             closed: AtomicBool::new(false),
             #[cfg(windows)]
             process_job,
@@ -246,7 +274,23 @@ impl StdioTransport {
         Self::read_stdout(Arc::downgrade(&transport), stdout);
         Self::read_stderr(Arc::downgrade(&transport), stderr);
         Self::monitor_process(Arc::downgrade(&transport));
+        Self::flush_buffered_deltas(Arc::downgrade(&transport));
         Ok(transport)
+    }
+
+    fn flush_buffered_deltas(transport: Weak<Self>) {
+        tauri::async_runtime::spawn(async move {
+            loop {
+                sleep(DELTA_FLUSH_INTERVAL).await;
+                let Some(transport) = transport.upgrade() else {
+                    break;
+                };
+                transport.flush_delta_buffer().await;
+                if transport.closed.load(Ordering::SeqCst) {
+                    break;
+                }
+            }
+        });
     }
 
     fn read_stdout(transport: Weak<Self>, stdout: tokio::process::ChildStdout) {
@@ -337,13 +381,14 @@ impl StdioTransport {
                 match status {
                     Ok(Some(status)) => {
                         let _ = transport.terminate_process_tree();
+                        transport.flush_delta_buffer().await;
                         let was_open = !transport.closed.swap(true, Ordering::SeqCst);
-                        transport.emit(AppServerEvent::exited(
-                            transport.generation,
-                            transport.next_sequence(),
-                            status.code(),
-                        ));
                         if was_open {
+                            transport.emit(AppServerEvent::exited(
+                                transport.generation,
+                                0,
+                                status.code(),
+                            ));
                             transport.fail_pending("App Server process exited").await;
                             transport.server_requests.lock().await.clear();
                             transport.active_turns.lock().await.clear();
@@ -361,6 +406,15 @@ impl StdioTransport {
     }
 
     async fn route_message(&self, message: Value) {
+        if self.closed.load(Ordering::SeqCst) {
+            return;
+        }
+        if delta_message_key(&message).is_some() {
+            self.buffer_delta(message).await;
+            return;
+        }
+        self.flush_delta_buffer().await;
+
         let id = message.get("id").cloned();
         let method = message
             .get("method")
@@ -391,11 +445,7 @@ impl StdioTransport {
                     .await
                     .insert(key, method.clone());
             }
-            self.emit(AppServerEvent::message(
-                self.generation,
-                self.next_sequence(),
-                message,
-            ));
+            self.emit(AppServerEvent::message(self.generation, 0, message));
             return;
         }
 
@@ -426,11 +476,7 @@ impl StdioTransport {
 
         if method.is_some() {
             self.track_turn_lifecycle(&message).await;
-            self.emit(AppServerEvent::message(
-                self.generation,
-                self.next_sequence(),
-                message,
-            ));
+            self.emit(AppServerEvent::message(self.generation, 0, message));
         } else {
             self.emit_diagnostic(
                 "malformedJsonRpc",
@@ -466,6 +512,7 @@ impl StdioTransport {
     }
 
     async fn handle_disconnect(&self, reason: &str) {
+        self.flush_delta_buffer().await;
         if !self.closed.swap(true, Ordering::SeqCst) {
             self.fail_pending(reason).await;
             self.server_requests.lock().await.clear();
@@ -474,21 +521,97 @@ impl StdioTransport {
         }
     }
 
-    fn next_sequence(&self) -> u64 {
-        self.sequence.fetch_add(1, Ordering::SeqCst)
-    }
-
-    fn emit(&self, event: AppServerEvent) {
+    fn emit(&self, mut event: AppServerEvent) {
+        // Sequence allocation and Channel::send must remain one critical
+        // section. Otherwise the stdout, stderr, process-monitor, and delta
+        // flush tasks can allocate sequence N/N+1 but deliver them in reverse,
+        // causing the frontend's stale-event guard to discard valid data.
+        let _guard = self
+            .emit_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        event.sequence = self.sequence.fetch_add(1, Ordering::SeqCst);
         let _ = self.events.send(event);
     }
 
     fn emit_diagnostic(&self, event_type: &str, detail: String) {
         self.emit(AppServerEvent::diagnostic(
             self.generation,
-            self.next_sequence(),
+            0,
             event_type,
             detail,
         ));
+    }
+
+    async fn buffer_delta(&self, message: Value) {
+        let Some(key) = delta_message_key(&message) else {
+            self.emit_message(message);
+            return;
+        };
+        let delta_bytes = message
+            .get("params")
+            .and_then(|params| params.get("delta"))
+            .and_then(Value::as_str)
+            .map(str::len)
+            .unwrap_or(0);
+        if delta_bytes == 0 || delta_bytes > MAX_BUFFERED_DELTA_BYTES {
+            self.flush_delta_buffer().await;
+            self.emit_message(message);
+            return;
+        }
+
+        let must_flush = {
+            let buffer = self.delta_buffer.lock().await;
+            buffer.bytes.saturating_add(delta_bytes) > MAX_BUFFERED_DELTA_BYTES
+                || buffer.events.len() >= MAX_BUFFERED_DELTA_EVENTS
+        };
+        if must_flush {
+            self.flush_delta_buffer().await;
+        }
+
+        let mut buffer = self.delta_buffer.lock().await;
+        if let Some(last) = buffer.events.last_mut() {
+            if last.key == key
+                && last.bytes.saturating_add(delta_bytes) <= MAX_COALESCED_DELTA_BYTES
+                && append_message_delta(&mut last.message, &message)
+            {
+                last.bytes += delta_bytes;
+                buffer.bytes += delta_bytes;
+            } else {
+                buffer.events.push(BufferedDelta {
+                    key,
+                    message,
+                    bytes: delta_bytes,
+                });
+                buffer.bytes += delta_bytes;
+            }
+        } else {
+            buffer.events.push(BufferedDelta {
+                key,
+                message,
+                bytes: delta_bytes,
+            });
+            buffer.bytes += delta_bytes;
+        }
+        drop(buffer);
+    }
+
+    async fn flush_delta_buffer(&self) {
+        // Keep extraction and delivery in one async critical section. A
+        // periodic flush must not take a delta batch, pause, and then let a
+        // terminal item/completed or turn/completed event overtake it.
+        let _delivery = self.delta_delivery.lock().await;
+        let pending = {
+            let mut buffer = self.delta_buffer.lock().await;
+            take_delta_events(&mut buffer)
+        };
+        for message in pending {
+            self.emit_message(message);
+        }
+    }
+
+    fn emit_message(&self, message: Value) {
+        self.emit(AppServerEvent::message(self.generation, 0, message));
     }
 
     async fn track_turn_lifecycle(&self, message: &Value) {
@@ -619,6 +742,7 @@ impl AppServerTransport for StdioTransport {
         // the normal EOF shutdown path. The process-tree guard remains the
         // final fallback and bounds total shutdown time.
         sleep(Duration::from_millis(150)).await;
+        self.flush_delta_buffer().await;
         if self.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
@@ -656,6 +780,59 @@ impl Drop for StdioTransport {
     }
 }
 
+fn take_delta_events(buffer: &mut DeltaBuffer) -> Vec<Value> {
+    buffer.bytes = 0;
+    std::mem::take(&mut buffer.events)
+        .into_iter()
+        .map(|event| event.message)
+        .collect()
+}
+
+fn delta_message_key(message: &Value) -> Option<String> {
+    let method = message.get("method").and_then(Value::as_str)?;
+    if !COALESCED_DELTA_METHODS.contains(&method) {
+        return None;
+    }
+    let params = message.get("params")?;
+    let delta = params.get("delta").and_then(Value::as_str)?;
+    if delta.is_empty() {
+        return None;
+    }
+    let thread_id = params.get("threadId").and_then(Value::as_str)?;
+    let turn_id = params.get("turnId").and_then(Value::as_str)?;
+    let item_id = params.get("itemId").and_then(Value::as_str)?;
+    Some(format!(
+        "{method}\u{1f}{thread_id}\u{1f}{turn_id}\u{1f}{item_id}"
+    ))
+}
+
+fn append_message_delta(target: &mut Value, incoming: &Value) -> bool {
+    let Some(incoming_delta) = incoming
+        .get("params")
+        .and_then(|params| params.get("delta"))
+        .and_then(Value::as_str)
+    else {
+        return false;
+    };
+    let Some(target_delta) = target
+        .get_mut("params")
+        .and_then(Value::as_object_mut)
+        .and_then(|params| params.get_mut("delta"))
+        .and_then(|delta| delta.as_str())
+    else {
+        return false;
+    };
+    let mut combined = String::with_capacity(target_delta.len() + incoming_delta.len());
+    combined.push_str(target_delta);
+    combined.push_str(incoming_delta);
+    if let Some(params) = target.get_mut("params").and_then(Value::as_object_mut) {
+        params.insert("delta".into(), Value::String(combined));
+        true
+    } else {
+        false
+    }
+}
+
 fn id_key(id: &Value) -> Result<String, TransportError> {
     match id {
         Value::Number(number) => Ok(format!("n:{number}")),
@@ -684,10 +861,19 @@ fn redact_diagnostic(line: &str) -> String {
         "api_key",
         "apikey",
         "access_token",
+        "password",
+        "credential",
+        "cookie",
+        "token",
         "secret",
+        "private_key",
+        "c:\\users\\",
+        "/users/",
+        "/home/",
     ]
     .iter()
     .any(|marker| lower.contains(marker))
+        || line.contains('@')
     {
         return "[sensitive App Server diagnostic redacted]".into();
     }
@@ -752,7 +938,7 @@ async fn read_frame<R: AsyncBufRead + Unpin>(
 
 #[cfg(test)]
 mod tests {
-    use super::{id_key, read_frame, redact_diagnostic};
+    use super::{append_message_delta, delta_message_key, id_key, read_frame, redact_diagnostic};
     use serde_json::json;
 
     #[test]
@@ -767,6 +953,51 @@ mod tests {
             redact_diagnostic("Authorization: Bearer private"),
             "[sensitive App Server diagnostic redacted]"
         );
+        assert_eq!(
+            redact_diagnostic("signed in as user@example.invalid"),
+            "[sensitive App Server diagnostic redacted]"
+        );
+        assert_eq!(
+            redact_diagnostic(r"cache path C:\Users\someone\.codex"),
+            "[sensitive App Server diagnostic redacted]"
+        );
+        assert_eq!(redact_diagnostic("safe warning"), "safe warning");
+    }
+
+    #[test]
+    fn adjacent_matching_deltas_can_be_coalesced_without_crossing_items() {
+        let mut first = json!({
+            "method": "item/agentMessage/delta",
+            "params": {
+                "threadId": "thread-1",
+                "turnId": "turn-1",
+                "itemId": "item-1",
+                "delta": "hel"
+            }
+        });
+        let second = json!({
+            "method": "item/agentMessage/delta",
+            "params": {
+                "threadId": "thread-1",
+                "turnId": "turn-1",
+                "itemId": "item-1",
+                "delta": "lo"
+            }
+        });
+        let other_item = json!({
+            "method": "item/agentMessage/delta",
+            "params": {
+                "threadId": "thread-1",
+                "turnId": "turn-1",
+                "itemId": "item-2",
+                "delta": "!"
+            }
+        });
+
+        assert_eq!(delta_message_key(&first), delta_message_key(&second));
+        assert_ne!(delta_message_key(&first), delta_message_key(&other_item));
+        assert!(append_message_delta(&mut first, &second));
+        assert_eq!(first["params"]["delta"], "hello");
     }
 
     #[tokio::test]
