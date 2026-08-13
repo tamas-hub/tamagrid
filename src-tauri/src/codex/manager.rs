@@ -1150,7 +1150,11 @@ async fn sha256_file(path: &Path) -> Result<String, String> {
         .await
         .map_err(|error| format!("Could not open Codex executable for fingerprinting: {error}"))?;
     let mut hasher = Sha256::new();
-    let mut buffer = [0_u8; 64 * 1024];
+    // Keep the read buffer off the future's stack. This function is nested in
+    // the Tauri connection command several times, and an inline 64 KiB array
+    // makes that command future large enough to overflow Windows' default
+    // 1 MiB UI-thread stack before Tokio can spawn it.
+    let mut buffer = vec![0_u8; 64 * 1024];
     loop {
         let read = file
             .read(&mut buffer)
@@ -1197,6 +1201,8 @@ fn path_string(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::{mem::size_of_val, path::Path};
+
     use serde_json::json;
 
     use super::{
@@ -1290,6 +1296,16 @@ mod tests {
                 "requiresOpenaiAuth": true,
                 "account": { "type": "chatgpt", "planType": "plus" }
             })
+        );
+    }
+
+    #[test]
+    fn executable_fingerprint_future_stays_small_for_tauri_ipc() {
+        let future = super::sha256_file(Path::new("unused-test-path"));
+        assert!(
+            size_of_val(&future) < 4 * 1024,
+            "sha256 future unexpectedly grew to {} bytes",
+            size_of_val(&future)
         );
     }
 
