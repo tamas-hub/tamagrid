@@ -1,0 +1,37 @@
+name: Security audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rustsec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+      - name: Install locked cargo-audit
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - name: Audit Rust lockfile
+        # Cargo.lock contains Tauri's Linux-only GTK dependency graph even
+        # though TamaGrid supports Windows/macOS. RUSTSEC-2024-0429 applies to
+        # glib::VariantStrIter in that inactive GTK graph; cargo tree confirms
+        # glib is absent for all three supported release targets. Keep every
+        # real vulnerability fatal and deny future unsound/yanked warnings.
+        run: >-
+          cargo audit --file src-tauri/Cargo.lock
+          --deny unsound --deny yanked
+          --ignore RUSTSEC-2024-0429

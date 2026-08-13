@@ -5,17 +5,17 @@
 
 ## 結論
 
-初回レビューで検出したHigh 2件、Medium 4件、Low 2件のうち、High 2件・Medium 4件・Low 1件はsource上で修正しました。残るLow 1件はrenderer受信queueをbounded/coalesced化して影響を抑えましたが、Rust readerからTauri Channelまでの内部queueをhard-boundしていないためresidual riskとして継続します。
+初回レビューで検出したHigh 2件、Medium 4件、Low 2件はすべてsource上で修正または強く緩和しました。追加レビューでは、Codex executableの初回自動検出と更新後のidentity再確認、account responseの最小化、Rust側delta bufferのhard bound、event送信順序の競合、PR依存差分検査、RustSec監査を追加しました。Tauri Channel内部のqueue上限はアプリ側から直接設定できないため、event-flood stress testはresidual validationとして継続します。
 
-主要変更は、raw RPC commandの廃止、method別Rust DTO、native executable picker、危険turnのnative JIT confirmation、高権限値の非永続化、approval context表示と情報不足時のApprove無効化、Windows Job Object / Unix process group、active-turn interrupt、Actions SHA pin / least privilege / Artifact Attestationです。
+主要変更は、raw RPC commandの廃止、method別Rust DTO、Codex executableのnative確認とSHA-256 pinning、危険turnのnative JIT confirmation、高権限値の非永続化、approval context表示と情報不足時のApprove無効化、account response最小化、bounded/coalesced event処理、Windows Job Object / Unix process group、active-turn interrupt、Actions SHA pin / least privilege / Dependency Review / RustSec / Artifact Attestationです。
 
 - Critical: 0
 - High open: 0（resolved: 2）
 - Medium open: 0（resolved in source: 4）
-- Low open: 0（resolved: 1、partially mitigated residual: 1）
+- Low open: 0（resolved: 1、strongly mitigated with residual validation: 1）
 - Informational / residual risk: 2
 
-推奨判断: source公開と、unsignedであることを明示したPublic Preview配布へ進める状態です。ただしGitHub workflowの実run、macOS build、process-tree stress test、署名なしinstallerの最終手動gateは公開repository作成後／実機確認時に必要です。「脆弱性がない」ことを保証する評価ではありません。
+推奨判断: source公開は継続可能です。binary releaseはまだ作成せず、今回追加したhardened PR CI、3-platform bundle smoke、GitHub security settings、macOS runtime、process-tree / event-flood stress test、署名なしinstallerの最終手動gateを通してから判断します。「脆弱性がない」ことを保証する評価ではありません。
 
 ## Initial findings and remediation
 
@@ -38,7 +38,7 @@
 ### TG-SEC-002 — WebView指定の任意 `.exe` をidentity確認より先に実行する
 
 - Severity: **High**（WebView侵害またはstorage改ざんが前提）
-- Status: **Resolved in source** — `connect_app_server` はpath argumentを受けず、手動変更はRust native picker + native confirmationだけに限定。承認pathはRust側app configへ保存し、localStorage migrationでは無視。
+- Status: **Resolved in source** — `connect_app_server` はpath argumentを受けず、自動検出・手動選択の両方で初回、path変更、SHA-256変更時にRust native confirmationを要求。canonical pathとfingerprintをRust側app configへ保存し、`--version` 検証後と `app-server` 起動直前にもfileの不変性を確認する。legacy preferenceは一度再承認が必要。
 - Rule ID: `TAURI-IPC-002`
 - Location:
   - `src/codex/bridge.ts:35-44`
@@ -113,7 +113,7 @@
   - `.github/workflows/release.yml:41-51`
   - `.github/workflows/release.yml:73-95`
 - Original evidence: 修正前は `actions/checkout@v4`、`pnpm/action-setup@v4`、`dtolnay/rust-toolchain@stable`、`tauri-apps/tauri-action@v0` などmutable refを使用し、release全jobへ `contents: write` が付与され、Dependabot設定もありませんでした。
-- Remediation evidence: 2026-08-13の再確認で6種類・22箇所の `uses:` はすべてupstreamに存在する40桁commit SHAへ固定され、古い無効な `pnpm/action-setup` SHAも署名済みv6.0.9 commitへ置換しました。全checkoutは `persist-credentials: false` です。
+- Remediation evidence: 初回remediationで6種類・22箇所の `uses:` をfull SHAへ固定し、古い無効な `pnpm/action-setup` SHAも署名済みv6.0.9 commitへ置換しました。追加hardening後は8種類・31箇所で、すべてupstream存在・署名を再検証済みです。全checkoutは `persist-credentials: false` です。
 - Impact: action tagまたはaction supply chainが侵害された場合、release binaryの改変、draft releaseの改変、repository contentへの書込につながり得ます。
 - Recommended fix: すべてのactionをreview済みfull commit SHAへpinし、Dependabotの`github-actions`更新を有効化します。workflow既定は `contents: read`、`publish` と `checksums` jobだけ `contents: write` にします。tag buildでもnative test/clippyを必須にし、公開repoではGitHub artifact attestationも検討してください。GitHubはfull SHA pinとleast privilegeを推奨しています。[GitHub Actions hardening](https://docs.github.com/en/code-security/tutorials/secure-your-organization/protect-against-threats) / [GITHUB_TOKEN permissions](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token)
 - Mitigation already present: frozen pnpm / Cargo lockfile、draft prerelease、手動公開、checksum、CycloneDX SBOM、third-party notice、Artifact Attestation、CIのread-only token。
@@ -136,7 +136,7 @@
 ### TG-SEC-008 — Protocol event queueにbounded backpressureがない
 
 - Severity: **Low**（availability）
-- Status: **Partially mitigated / residual** — frontend queueは1,024 event上限、delta coalescing、hard-limit synchronous flushへ変更し、terminal / approval eventを保持。Rust→Tauri Channel内部のhard boundとevent-flood stress testは未完了。
+- Status: **Strongly mitigated / residual validation** — Rust側でdeltaを20 ms単位にcoalesceし、合計1 MiB / 256 event、coalesced event 128 KiBへhard-bound。terminal / approval / error前にarrival orderでflushし、sequence割当とChannel送信を同一lockで直列化。frontendも1,024 event上限、delta coalescing、hard-limit synchronous flushを持つ。Tauri Channel内部queueの直接設定とevent-flood runtime stress testは未完了。
 - Rule ID: `TAURI-AVAIL-001`
 - Location:
   - `src-tauri/src/codex/transport.rs:22-24`
@@ -144,10 +144,10 @@
   - `src-tauri/src/codex/transport.rs:353-355`
   - `src/App.tsx:173-180`
   - `src/App.tsx:232-237`
-- Evidence: 1 JSONL frameは最大16 MiBで、各messageをTauri Channelへ即送信します。frontend queueはanimation frameまで無制限にpushされます。表示stateは200 eventへ丸めますが、queue到着時点のbackpressureではありません。
+- Remediation evidence: 対象deltaは `(method, generation, threadId, turnId, itemId)` 相当のrouting keyで隣接分だけ結合し、上限到達時は古いbatchを先にflushします。terminal eventはdropせず、delta batchを先に送ります。stdout reader、stderr reader、process monitor、periodic flushの並行送信はsequenceとdeliveryの逆転が起きないよう直列化しました。
 - Impact: 大量command outputや高速deltaによりrenderer memory/CPUが増え、UI freezeまたはcrashが起こり得ます。
 - Recommended fix: Rust側にbounded channelを置き、deltaを `(generation, threadId, turnId, itemId)` 単位でcoalesceします。terminal/approval/error eventはdropしないpriority queueとし、line limitも実測に基づいて引き下げを検討します。
-- Mitigation already present: frame length limit、frontend frame batching、state event/detail truncation。
+- Mitigation already present: protocol / diagnostic frame length limit、Rust-side bounded delta batching、frontend frame batchingとhard limit、state event/detail truncation。
 - Confidence: Medium。stress testは今回行っていません。
 
 ## Informational / residual risks
@@ -157,8 +157,9 @@
 - Severity: **Informational**
 - Status: **Open upstream dependency risk** — TamaGridから直接利用していないためTauri更新で追跡。Dependabotを追加。
 - Rule ID: `RUSTSEC-MAINT-001`
-- Evidence: Windows x64、macOS x64、macOS arm64のlock済み依存をOSV/RustSecへ照合すると、各targetで5件の `INFO Unmaintained` が検出されました。`unic-char-property`、`unic-char-range`、`unic-common`、`unic-ucd-ident`、`unic-ucd-version` で、dependency pathは `tauri-utils -> urlpattern -> unic-ucd-ident` です。既知のexploit advisoryではありません。[RUSTSEC-2025-0081](https://rustsec.org/advisories/RUSTSEC-2025-0081.html) / [RUSTSEC-2025-0100](https://rustsec.org/advisories/RUSTSEC-2025-0100.html)
+- Evidence: Windows x64、macOS x64、macOS arm64のtarget-aware dependency graphを照合すると、各targetで5件の `INFO Unmaintained` が検出されました。`unic-char-property`、`unic-char-range`、`unic-common`、`unic-ucd-ident`、`unic-ucd-version` で、dependency pathは `tauri-utils -> urlpattern -> unic-ucd-ident` です。既知のexploit advisoryではありません。[RUSTSEC-2025-0081](https://rustsec.org/advisories/RUSTSEC-2025-0081.html) / [RUSTSEC-2025-0100](https://rustsec.org/advisories/RUSTSEC-2025-0100.html)
 - Recommendation: TamaGrid側で直接置換せず、Tauri/tauri-utilsの更新でupstream解消を追跡します。CIへRustSec/OSV監査を追加し、unmaintained warningとvulnerabilityを別扱いにしてください。
+- Audit nuance: Cargo.lock全体のRustSec監査は、未対応Linux専用のGTK graphにある`glib` unsound warning `RUSTSEC-2024-0429`も報告します。`cargo tree`でWindows/macOS 3 targetから`glib`が到達不能であることを確認したため、CIではこの1件だけ理由付きignoreとし、実vulnerability、将来のunsound、yanked crateは失敗させます。
 
 ### TG-SEC-010 — Windows installerはAuthenticode未署名
 
@@ -168,6 +169,13 @@
 - Evidence: NSISとMSIの `Get-AuthenticodeSignature` はともに `NotSigned`。SHA-256は同梱 `SHA256SUMS.txt` と一致しました。release notesとREADMEにも未署名が明記されています。
 - Impact: GitHub account/release自体が侵害された場合、同じ場所に置かれたinstallerとchecksumを同時に差し替えられるため、checksumだけではpublisher identityを証明できません。SmartScreen警告も残ります。
 - Recommendation: 現状はPublic Preview/unsignedを明記したまま配布可能です。費用をかけずに補強するならGitHub artifact attestationでbuild provenanceを付け、検証手順をREADMEへ追加します。これはAuthenticodeの代替ではありません。Tauriも署名は実行必須ではないが、browser download時のSmartScreen信頼に影響すると説明しています。[Tauri Windows code signing](https://v2.tauri.app/distribute/sign/windows/) / [GitHub artifact attestations](https://docs.github.com/en/actions/concepts/security/artifact-attestations)
+
+### TG-SEC-011 — 既存public commitのprovenanceとauthor metadata
+
+- Severity: **Informational / privacy and provenance**
+- Status: **Mitigated for future commits; published history unchanged** — repository-local Git identityはGitHub noreply addressへ変更。今回の変更はpull requestをGitHub上でsquash mergeし、mainへGitHub-verified commitとして入れる計画。既存5 commitの書換えはpublic history、open Dependabot PR、cloneを無効化するため未実施。
+- Evidence: 現在公開済み5 commitはすべてunsignedで、全件のauthor metadataにnoreplyではないaddressが残っています。値自体はこの報告やlogへ再掲しません。
+- Recommendation: mainへrequired signed commitsを有効化し、以後はGitHub上のverified squash mergeまたは管理された署名keyを使います。既存metadataを完全に消す場合だけ、影響範囲を確認して別途明示許可の上でhistory rewrite / force-pushを行います。
 
 ## 確認できた良い点
 
@@ -182,15 +190,17 @@
 - dangerous authorityはnative dialogでturnごとに確認し、high-risk valueを永続化しません。
 - App Server process treeはWindows Job Object / Unix process groupへcontainします。
 - GitHub Actionsはfull SHA pin、least privilege、draft release、checksum、Artifact Attestationを組み合わせます。
+- GitHub repositoryはPrivate Vulnerability Reporting、secret scanning / push protection、Dependabot security updates、read-only workflow token、action allowlist、required SHA pinningを有効化。初回CodeQL default scanは成功し、CodeQL / secret / Dependabot open alertは0件。PRを必ずgateするため、Actions / JavaScript・TypeScript / Rustの明示的なCodeQL advanced workflowへ移行。
 - installerのSHA-256は同梱manifestと一致しました。
 
 ## 実行した検証
 
-- `pnpm audit --prod --audit-level high`: **No known vulnerabilities found**
+- `pnpm audit --prod --audit-level moderate`: **No known vulnerabilities found**
 - `pnpm check`: ESLint、44 tests、TypeScript、Vite production build **pass**
 - `cargo fmt --check`: **pass**
 - `cargo clippy --all-targets -- -D warnings`: **pass**
-- `cargo test`: Rust 7 tests **pass**
+- `cargo test`: Rust 11 tests **pass**（executable fingerprint、bounded version output、account minimization、delta coalescing、diagnostic redactionを含む）
+- `pnpm tauri build --no-bundle`: 現行hardening sourceのWindows production executable link **pass**
 - OSV query: lock済みcrateをtarget別に照合
   - Windows x64: 266 crates、5 unmaintained warning、severity-bearing / exploit vulnerability 0
   - macOS x64: 259 crates、5 unmaintained warning、severity-bearing / exploit vulnerability 0
@@ -202,13 +212,14 @@
 - Authenticode: NSIS / MSIとも `NotSigned`
 - SHA-256: NSIS `49CF25C80F793547B9C7897881BB2568034D585722ED0F564CEEC0AF18328288`、MSI `D58A6DDBEBB911D74F37258BAB895250764759750B6DDE3A870B9E6A100A9521`。release setの `SHA256SUMS.txt` と一致
 - clean candidate check: ignore適用後128ファイルだけを新規directoryへ複製し、`pnpm install --frozen-lockfile`、frontend 44 tests / production build、Rust 7 testsを生成物ゼロから再実行して **pass**
-- GitHub Actions static check: 2 workflowを含むGitHub YAML 6件がparse **pass**、22の `uses:` が全て実在確認済みfull commit SHA
+- GitHub Actions static check: 5 workflowを含むGitHub YAML 9件がparse **pass**、34のaction useがfull SHA。9種類すべてのupstream commitが存在し、署名検証`verified=true`。
+- GitHub CodeQL initial setup: run `31710120357` **success**、open CodeQL alert 0、open secret scanning alert 0、open Dependabot alert 0
 
 ## 限界
 
 - sourceとlocal buildを対象としたstatic / dependency reviewです。第三者penetration testや形式検証ではありません。
 - 実際の悪意あるWebView payload、Codex prompt injection、sandbox escapeは実行していません。
-- descendant process残留とevent floodはruntime stress reproductionをしていません。
+- descendant process残留とevent floodはruntime stress reproductionをしていません。queue上限のunit testは実施済みでも、Tauri/WebViewを含む長時間負荷試験の代替ではありません。
 - release executableの基本起動・終了smoke testは通過しましたが、長時間turnや多段descendant、強制crashを含むstress testの代替ではありません。
 - OSV/RustSec照合は監査時点の公開databaseに依存し、未知脆弱性を否定するものではありません。
 - OS WebView2、Codex CLI、OpenAI serviceそのものの脆弱性は対象外です。

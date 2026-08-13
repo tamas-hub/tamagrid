@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use sha2::{Digest, Sha256};
 use std::{
     collections::HashSet,
     env,
@@ -9,12 +10,14 @@ use std::{
 };
 use tauri::{ipc::Channel, AppHandle, Manager, State};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
-use tokio::{process::Command, sync::oneshot, sync::Mutex, time::Duration};
+use tokio::{io::AsyncReadExt, process::Command, sync::oneshot, sync::Mutex, time::Duration};
 
 use super::{
     protocol::{AppServerEvent, ConnectionInfo, DetectionResult},
     transport::{AppServerTransport, StdioTransport},
 };
+
+const MAX_VERSION_OUTPUT: usize = 64 * 1024;
 
 const MAX_IDENTIFIER: usize = 512;
 const MAX_CURSOR: usize = 2_048;
@@ -44,18 +47,16 @@ impl AppServerManager {
 
         // Executable selection is deliberately resolved in Rust. The WebView
         // cannot supply a path that will be executed.
-        let detection = resolve_codex(app).await?;
+        let verified = resolve_codex(app).await?;
+        ensure_executable_unchanged(&verified).await?;
+        let detection = verified.detection.clone();
         let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
-        let transport = StdioTransport::spawn(
-            PathBuf::from(&detection.executable_path),
-            generation,
-            events,
-        )
-        .await
-        .map_err(|error| error.to_string())?;
+        let transport = StdioTransport::spawn(verified.canonical_path, generation, events)
+            .await
+            .map_err(|error| error.to_string())?;
 
         let handshake = async {
-            let initialize = transport
+            transport
                 .request(
                     "initialize",
                     json!({
@@ -76,6 +77,7 @@ impl AppServerManager {
                 .request("account/read", json!({ "refreshToken": false }))
                 .await
                 .map_err(|error| error.to_string())?;
+            let account = sanitize_account_response(account);
             let models = read_all_models(transport.as_ref()).await?;
             // Rate limit metadata was added after the core account API. Older
             // Codex versions remain connectable and surface usage as unavailable.
@@ -83,11 +85,11 @@ impl AppServerManager {
                 .request("account/rateLimits/read", json!({}))
                 .await
                 .ok();
-            Ok::<_, String>((initialize, account, models, rate_limits))
+            Ok::<_, String>((account, models, rate_limits))
         }
         .await;
 
-        let (initialize, account, models, rate_limits) = match handshake {
+        let (account, models, rate_limits) = match handshake {
             Ok(result) => result,
             Err(error) => {
                 let _ = transport.shutdown().await;
@@ -100,7 +102,6 @@ impl AppServerManager {
             generation,
             executable_path: detection.executable_path,
             version: detection.version,
-            initialize,
             account,
             models,
             rate_limits,
@@ -282,7 +283,7 @@ pub enum ApprovalDecision {
 
 #[tauri::command]
 pub async fn detect_codex(app: AppHandle) -> Result<DetectionResult, String> {
-    resolve_codex(&app).await
+    Ok(resolve_codex(&app).await?.detection)
 }
 
 #[tauri::command]
@@ -304,32 +305,20 @@ pub async fn choose_codex_executable(app: AppHandle) -> Result<DetectionResult, 
         .into_path()
         .map_err(|error| format!("The selected executable path is invalid: {error}"))?;
     let canonical = validate_candidate_file(selected).await?;
-
-    let message = format!(
-        "Run this executable to verify Codex?\n\n{}\n\nTamaGrid will run --version now and app-server when you connect. Only continue if you trust this file.\n\nこのファイルを信頼できる場合のみ続行してください。",
-        canonical.display()
-    );
-    if !show_native_confirmation(
+    let verified = confirm_and_verify_candidate(
         &app,
-        "Verify Codex executable / 実行ファイルの確認",
-        message,
-        "Verify / 確認",
+        canonical,
+        "Run this executable to verify Codex? / この実行ファイルを確認しますか？",
+        None,
     )
-    .await?
-    {
-        return Err("Executable verification was cancelled".into());
-    }
-
-    let detection = verify_candidate(canonical).await?;
-    save_approved_executable(&app, &detection.executable_path).await?;
-    Ok(detection)
+    .await?;
+    save_approved_executable(&app, &verified).await?;
+    Ok(verified.detection)
 }
 
 #[tauri::command]
 pub async fn use_auto_detect_codex(app: AppHandle) -> Result<DetectionResult, String> {
-    let detection = resolve_auto_codex().await?;
-    clear_approved_executable(&app).await?;
-    Ok(detection)
+    Ok(resolve_auto_codex(&app).await?.detection)
 }
 
 #[tauri::command(rename_all = "camelCase")]
@@ -348,9 +337,10 @@ pub async fn disconnect_app_server(state: State<'_, AppServerManager>) -> Result
 
 #[tauri::command]
 pub async fn codex_account_read(state: State<'_, AppServerManager>) -> Result<Value, String> {
-    state
+    let response = state
         .request("account/read", json!({ "refreshToken": false }))
-        .await
+        .await?;
+    Ok(sanitize_account_response(response))
 }
 
 #[tauri::command]
@@ -826,6 +816,14 @@ async fn show_native_confirmation(
 struct ExecutablePreference {
     version: u8,
     executable_path: String,
+    #[serde(default)]
+    sha256: Option<String>,
+}
+
+struct VerifiedCodex {
+    detection: DetectionResult,
+    canonical_path: PathBuf,
+    sha256: String,
 }
 
 fn executable_preference_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -836,14 +834,16 @@ fn executable_preference_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(directory.join(EXECUTABLE_PREFERENCE_FILE))
 }
 
-async fn load_approved_executable(app: &AppHandle) -> Option<PathBuf> {
+async fn load_approved_executable(app: &AppHandle) -> Option<ExecutablePreference> {
     let path = executable_preference_path(app).ok()?;
     let contents = tokio::fs::read_to_string(path).await.ok()?;
-    let preference: ExecutablePreference = serde_json::from_str(&contents).ok()?;
-    (preference.version == 1).then(|| PathBuf::from(preference.executable_path))
+    serde_json::from_str(&contents).ok()
 }
 
-async fn save_approved_executable(app: &AppHandle, executable: &str) -> Result<(), String> {
+async fn save_approved_executable(
+    app: &AppHandle,
+    executable: &VerifiedCodex,
+) -> Result<(), String> {
     let path = executable_preference_path(app)?;
     let parent = path
         .parent()
@@ -852,24 +852,14 @@ async fn save_approved_executable(app: &AppHandle, executable: &str) -> Result<(
         .await
         .map_err(|error| format!("Could not create TamaGrid's config directory: {error}"))?;
     let contents = serde_json::to_vec_pretty(&ExecutablePreference {
-        version: 1,
-        executable_path: executable.to_owned(),
+        version: 2,
+        executable_path: executable.detection.executable_path.clone(),
+        sha256: Some(executable.sha256.clone()),
     })
     .map_err(|error| format!("Could not encode Codex executable preference: {error}"))?;
     tokio::fs::write(path, contents)
         .await
         .map_err(|error| format!("Could not save Codex executable preference: {error}"))
-}
-
-async fn clear_approved_executable(app: &AppHandle) -> Result<(), String> {
-    let path = executable_preference_path(app)?;
-    match tokio::fs::remove_file(path).await {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!(
-            "Could not clear Codex executable preference: {error}"
-        )),
-    }
 }
 
 async fn read_all_models(transport: &StdioTransport) -> Result<Vec<Value>, String> {
@@ -899,22 +889,54 @@ async fn read_all_models(transport: &StdioTransport) -> Result<Vec<Value>, Strin
     Err("model/list exceeded the pagination safety limit".into())
 }
 
-async fn resolve_codex(app: &AppHandle) -> Result<DetectionResult, String> {
-    if let Some(approved) = load_approved_executable(app).await {
-        if let Ok(result) = validate_candidate(approved).await {
-            return Ok(result);
+async fn resolve_codex(app: &AppHandle) -> Result<VerifiedCodex, String> {
+    if let Some(preference) = load_approved_executable(app).await {
+        if let Ok(canonical) =
+            validate_candidate_file(PathBuf::from(&preference.executable_path)).await
+        {
+            let current_sha256 = sha256_file(&canonical).await?;
+            if approved_hash_matches(&preference, &current_sha256) {
+                return verify_candidate(canonical, current_sha256).await;
+            }
+
+            let previous = preference
+                .sha256
+                .as_deref()
+                .filter(|value| !value.is_empty());
+            let verified = confirm_and_verify_candidate(
+                app,
+                canonical,
+                "The approved Codex executable changed or predates fingerprint pinning. / 承認済みCodex実行ファイルが変更されたか、指紋固定前の設定です。",
+                previous,
+            )
+            .await?;
+            save_approved_executable(app, &verified).await?;
+            return Ok(verified);
         }
     }
-    resolve_auto_codex().await
+    resolve_auto_codex(app).await
 }
 
-async fn resolve_auto_codex() -> Result<DetectionResult, String> {
+async fn resolve_auto_codex(app: &AppHandle) -> Result<VerifiedCodex, String> {
+    let canonical = find_auto_codex_candidate().await?;
+    let verified = confirm_and_verify_candidate(
+        app,
+        canonical,
+        "TamaGrid auto-detected this Codex executable. / TamaGridがこのCodex実行ファイルを自動検出しました。",
+        None,
+    )
+    .await?;
+    save_approved_executable(app, &verified).await?;
+    Ok(verified)
+}
+
+async fn find_auto_codex_candidate() -> Result<PathBuf, String> {
     let mut seen = HashSet::new();
     for candidate in codex_candidates() {
         let key = candidate.to_string_lossy().to_ascii_lowercase();
         if seen.insert(key) {
-            if let Ok(result) = validate_candidate(candidate).await {
-                return Ok(result);
+            if let Ok(canonical) = validate_candidate_file(candidate).await {
+                return Ok(canonical);
             }
         }
     }
@@ -960,11 +982,6 @@ fn codex_candidates() -> Vec<PathBuf> {
     candidates
 }
 
-async fn validate_candidate(path: PathBuf) -> Result<DetectionResult, String> {
-    let canonical = validate_candidate_file(path).await?;
-    verify_candidate(canonical).await
-}
-
 async fn validate_candidate_file(path: PathBuf) -> Result<PathBuf, String> {
     if !path.is_absolute() {
         return Err("Codex executable path must be absolute".into());
@@ -994,7 +1011,37 @@ async fn validate_candidate_file(path: PathBuf) -> Result<PathBuf, String> {
         .map_err(|error| format!("Could not resolve Codex executable path: {error}"))
 }
 
-async fn verify_candidate(canonical: PathBuf) -> Result<DetectionResult, String> {
+async fn confirm_and_verify_candidate(
+    app: &AppHandle,
+    canonical: PathBuf,
+    reason: &str,
+    previous_sha256: Option<&str>,
+) -> Result<VerifiedCodex, String> {
+    let current_sha256 = sha256_file(&canonical).await?;
+    let previous = previous_sha256
+        .map(|value| format!("\nPreviously approved SHA-256: {value}"))
+        .unwrap_or_default();
+    let message = format!(
+        "{reason}\n\nPath: {}\nCurrent SHA-256: {current_sha256}{previous}\n\nTamaGrid will run --version now and app-server when you connect. Continue only if you trust this exact file.\n\nこのファイルとSHA-256を信頼できる場合のみ続行してください。",
+        canonical.display()
+    );
+    if !show_native_confirmation(
+        app,
+        "Verify Codex executable / 実行ファイルの確認",
+        message,
+        "Trust and verify / 信頼して確認",
+    )
+    .await?
+    {
+        return Err("Executable verification was cancelled".into());
+    }
+    verify_candidate(canonical, current_sha256).await
+}
+
+async fn verify_candidate(
+    canonical: PathBuf,
+    expected_sha256: String,
+) -> Result<VerifiedCodex, String> {
     let mut command = Command::new(&canonical);
     command
         .arg("--version")
@@ -1007,23 +1054,140 @@ async fn verify_candidate(canonical: PathBuf) -> Result<DetectionResult, String>
         use std::os::windows::process::CommandExt;
         command.as_std_mut().creation_flags(0x0800_0000);
     }
-    let output = tokio::time::timeout(Duration::from_secs(8), command.output())
-        .await
-        .map_err(|_| "Codex version check timed out".to_string())?
+    let mut child = command
+        .spawn()
         .map_err(|error| format!("Codex executable is not runnable: {error}"))?;
-    if !output.status.success() {
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Codex version stdout was unavailable".to_string())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "Codex version stderr was unavailable".to_string())?;
+    let check = async {
+        let stdout = read_bounded_output(stdout, MAX_VERSION_OUTPUT);
+        let stderr = read_bounded_output(stderr, MAX_VERSION_OUTPUT);
+        let status = child.wait();
+        tokio::try_join!(stdout, stderr, status)
+    };
+    let (stdout, _stderr, status) = match tokio::time::timeout(Duration::from_secs(8), check).await
+    {
+        Ok(Ok(output)) => output,
+        Ok(Err(error)) => {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            return Err(format!("Codex version check failed safely: {error}"));
+        }
+        Err(_) => {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            return Err("Codex version check timed out".into());
+        }
+    };
+    if !status.success() {
         return Err(format!(
             "Codex version check failed with exit code {:?}",
-            output.status.code()
+            status.code()
         ));
     }
-    let version = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    let version = String::from_utf8_lossy(&stdout).trim().to_owned();
     if version.is_empty() || !version.to_ascii_lowercase().contains("codex") {
         return Err("The selected executable did not identify itself as Codex".into());
     }
-    Ok(DetectionResult {
-        executable_path: path_string(&canonical),
-        version,
+    let verified_sha256 = sha256_file(&canonical).await?;
+    if !verified_sha256.eq_ignore_ascii_case(&expected_sha256) {
+        return Err("The Codex executable changed while it was being verified".into());
+    }
+    Ok(VerifiedCodex {
+        detection: DetectionResult {
+            executable_path: path_string(&canonical),
+            version,
+        },
+        canonical_path: canonical,
+        sha256: verified_sha256,
+    })
+}
+
+async fn read_bounded_output<R: tokio::io::AsyncRead + Unpin>(
+    reader: R,
+    max_length: usize,
+) -> std::io::Result<Vec<u8>> {
+    let mut output = Vec::new();
+    reader
+        .take((max_length + 1) as u64)
+        .read_to_end(&mut output)
+        .await?;
+    if output.len() > max_length {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Codex version output exceeded the safety limit",
+        ))
+    } else {
+        Ok(output)
+    }
+}
+
+async fn ensure_executable_unchanged(executable: &VerifiedCodex) -> Result<(), String> {
+    let current_sha256 = sha256_file(&executable.canonical_path).await?;
+    if current_sha256.eq_ignore_ascii_case(&executable.sha256) {
+        Ok(())
+    } else {
+        Err("The Codex executable changed after verification; connection was cancelled".into())
+    }
+}
+
+fn approved_hash_matches(preference: &ExecutablePreference, current_sha256: &str) -> bool {
+    preference.version == 2
+        && preference
+            .sha256
+            .as_deref()
+            .is_some_and(|approved| approved.eq_ignore_ascii_case(current_sha256))
+}
+
+async fn sha256_file(path: &Path) -> Result<String, String> {
+    let mut file = tokio::fs::File::open(path)
+        .await
+        .map_err(|error| format!("Could not open Codex executable for fingerprinting: {error}"))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .await
+            .map_err(|error| format!("Could not fingerprint Codex executable: {error}"))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
+}
+
+fn sanitize_account_response(response: Value) -> Value {
+    let requires_openai_auth = response
+        .get("requiresOpenaiAuth")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let account = response
+        .get("account")
+        .and_then(Value::as_object)
+        .and_then(|raw| {
+            let account_type = raw.get("type").and_then(Value::as_str)?;
+            let mut safe = Map::new();
+            safe.insert("type".into(), Value::String(account_type.to_owned()));
+            if let Some(plan_type) = raw.get("planType").and_then(Value::as_str) {
+                safe.insert("planType".into(), Value::String(plan_type.to_owned()));
+            }
+            Some(Value::Object(safe))
+        });
+    json!({
+        "requiresOpenaiAuth": requires_openai_auth,
+        "account": account
     })
 }
 
@@ -1033,7 +1197,13 @@ fn path_string(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{safe_thread_params, validate_common_options, ApprovalPolicy, SandboxMode};
+    use serde_json::json;
+
+    use super::{
+        approved_hash_matches, safe_thread_params, sanitize_account_response,
+        validate_common_options, ApprovalPolicy, ExecutablePreference, SandboxMode,
+        MAX_VERSION_OUTPUT,
+    };
 
     #[test]
     fn thread_loads_strip_persisted_high_risk_authority() {
@@ -1082,5 +1252,65 @@ mod tests {
         assert!(validate_common_options(None, Some("relative"), None, None).is_err());
         let invalid = format!("{}\nbad", std::env::current_dir().unwrap().display());
         assert!(validate_common_options(None, Some(&invalid), None, None).is_err());
+    }
+
+    #[test]
+    fn executable_fingerprint_requires_v2_and_an_exact_hash() {
+        let legacy = ExecutablePreference {
+            version: 1,
+            executable_path: "codex".into(),
+            sha256: None,
+        };
+        assert!(!approved_hash_matches(&legacy, "abc"));
+
+        let pinned = ExecutablePreference {
+            version: 2,
+            executable_path: "codex".into(),
+            sha256: Some("ABC123".into()),
+        };
+        assert!(approved_hash_matches(&pinned, "abc123"));
+        assert!(!approved_hash_matches(&pinned, "changed"));
+    }
+
+    #[test]
+    fn account_response_exposes_only_auth_state_needed_by_the_ui() {
+        let sanitized = sanitize_account_response(json!({
+            "requiresOpenaiAuth": true,
+            "account": {
+                "type": "chatgpt",
+                "email": "private@example.invalid",
+                "planType": "plus",
+                "accessToken": "must-not-cross-ipc"
+            },
+            "unexpected": "discarded"
+        }));
+        assert_eq!(
+            sanitized,
+            json!({
+                "requiresOpenaiAuth": true,
+                "account": { "type": "chatgpt", "planType": "plus" }
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn version_output_reader_rejects_oversized_output() {
+        let acceptable = vec![b'x'; MAX_VERSION_OUTPUT];
+        assert_eq!(
+            super::read_bounded_output(&acceptable[..], MAX_VERSION_OUTPUT)
+                .await
+                .unwrap()
+                .len(),
+            MAX_VERSION_OUTPUT
+        );
+
+        let oversized = vec![b'x'; MAX_VERSION_OUTPUT + 1];
+        assert_eq!(
+            super::read_bounded_output(&oversized[..], MAX_VERSION_OUTPUT)
+                .await
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::InvalidData
+        );
     }
 }
