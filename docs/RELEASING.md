@@ -34,11 +34,14 @@ TamaGridのGitHub Releaseは、未署名artifactを誤って正式版として�
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm audit --prod --audit-level high
+pnpm audit --prod --audit-level moderate
 pnpm check
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
+cargo install cargo-audit --version 0.22.2 --locked
+cargo audit --file src-tauri/Cargo.lock --deny unsound --deny yanked --ignore RUSTSEC-2024-0429
+node scripts/verify-release-version.mjs v0.5.0
 ```
 
 4. [SECURITY_REVIEW.md](../SECURITY_REVIEW.md) のopen findingとresidual riskを確認する。
@@ -54,7 +57,7 @@ git tag v0.5.0
 git push origin v0.5.0
 ```
 
-tag pushで `.github/workflows/release.yml` がWindows NSIS / MSI、macOS app / dmg、tagと同名の `RELEASE_NOTES.md`、`THIRD_PARTY_NOTICES.md`、production JavaScript dependencyのCycloneDX SBOM、`SHA256SUMS.txt` をdraft prereleaseへ追加し、native artifact・release metadata・checksum manifestのGitHub Artifact Attestationを生成します。tag名に対応する `docs/release-notes/<tag>.md` がない場合、workflowは失敗します。tagの作成とpushはrepository ownerの明示的な公開判断後に行ってください。
+tag pushで `.github/workflows/release.yml` が、tag commitが`main`に含まれること、tag・package・Tauri・Cargoのversion一致、release notesの存在、frontend / Rust test、JavaScript / Rust dependency auditを先に検証します。その後Windows NSIS / MSI、macOS app / dmg、tagと同名の `RELEASE_NOTES.md`、`THIRD_PARTY_NOTICES.md`、production JavaScript dependencyのCycloneDX SBOM、`SHA256SUMS.txt` をdraft prereleaseへ追加し、native artifact・release metadata・checksum manifestのGitHub Artifact Attestationを生成します。tagの作成とpushはrepository ownerの明示的な公開判断後に行ってください。
 
 ## Manual release gate
 

@@ -14,7 +14,6 @@ pub struct ConnectionInfo {
     pub generation: u64,
     pub executable_path: String,
     pub version: String,
-    pub initialize: Value,
     pub account: Value,
     pub models: Vec<Value>,
     pub rate_limits: Option<Value>,

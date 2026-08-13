@@ -239,7 +239,6 @@ export class PreviewCodexBridge implements CodexBridge {
       generation: this.generation,
       executablePath: "Preview mode (no executable)",
       version: "preview",
-      initialize: { platformFamily: "browser-preview", platformOs: "browser" },
       account: { account: { type: "preview" }, requiresOpenaiAuth: false },
       models: this.models,
       rateLimits: this.rateLimits,
