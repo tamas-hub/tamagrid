@@ -74,7 +74,9 @@ function parseOptions(args) {
   let skipBuild = false;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
-    if (argument === "--duration-ms") {
+    if (argument === "--") {
+      continue;
+    } else if (argument === "--duration-ms") {
       durationMs = Number(args[++index]);
     } else if (argument === "--target") {
       target = args[++index];
