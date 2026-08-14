@@ -4,6 +4,16 @@ TamaGridの利用者に影響する変更をこのファイルへ記録します
 
 ## [Unreleased]
 
+### Security
+
+- Windowsの隔離packaged appを強制終了し、productionと同じJob Objectに収容したfixture親子が5秒以内に両方終了する自動回帰試験を追加
+- 強制終了試験のhelper、IPC、環境変数は`packaged-soak-test` featureだけに限定し、配布buildには含めない
+
+### Validation
+
+- Windows packaged appの強制終了試験を3回実行し、fixture親・孫processをすべて627 ms以内で回収、残留0を確認
+- 通常のproduction buildを再生成し、強制終了試験のcommand、環境変数、helper名が本体binaryに含まれないことを確認
+
 ## [0.6.0] - 2026-08-14
 
 ### Added
@@ -35,7 +45,7 @@ TamaGridの利用者に影響する変更をこのファイルへ記録します
 - Windows Authenticode署名なし
 - macOS Developer ID署名 / notarizationなし
 - macOS実機の基本動作はrepository ownerがPass報告。package hash、機種、OS version、項目別結果は未記録
-- 強制crash時のpackaged process-tree回収は未確認
+- 強制crash時のpackaged process-tree回収は、この公開版では未確認（後続`main`でWindows隔離試験を追加）
 
 ## [0.5.0] - 2026-08-13
 

@@ -241,7 +241,7 @@ WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local 
 - plugin、MCP elicitation、permissions grant、realtime、rollback等のexperimental APIは未実装
 - 信頼済みcode signing、notarization、自動updater、OS notificationは未実施（署名設定手順は同梱）
 - App Server schemaはCodex更新で変わり得るため、未知のnotificationは安全に無視し、互換性エラーはUIへ表示
-- 高頻度deltaはRust / rendererの両queueで上限を設け、100,000 deltaの自動stress testを通過。Windowsのpackaged Tauri / WebViewでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 ms、終了後のapp / WebView残留process 0で完走。macOS実機での同等試験と強制crash時の最終確認は未実施
+- 高頻度deltaはRust / rendererの両queueで上限を設け、100,000 deltaの自動stress testを通過。Windowsのpackaged Tauri / WebViewでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 msで完走。後続`main`では隔離packaged appを強制終了する試験を3回行い、productionと同じJob Object内のfixture親・孫processをすべて627 ms以内で回収、残留0を確認。macOS実機での同等負荷・強制crash試験は未実施
 
 ## Disclaimer
 

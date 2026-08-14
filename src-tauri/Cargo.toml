@@ -5,6 +5,7 @@ description = "Local-first multi-task desktop workspace for Codex App Server"
 authors = ["TamaGrid contributors"]
 edition = "2021"
 license = "MIT"
+default-run = "tamagrid"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,6 +15,11 @@ license = "MIT"
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "tamagrid_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "tamagrid-process-tree-fixture"
+path = "src/bin/process_tree_fixture.rs"
+required-features = ["packaged-soak-test"]
 
 [features]
 default = []

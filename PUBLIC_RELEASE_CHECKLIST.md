@@ -105,3 +105,11 @@ This checklist separates completed source/repository work, published Public Prev
 - Tauri currently brings five `unic-*` unmaintained advisories through `tauri-utils -> urlpattern`; no severity-bearing exploit advisory was identified in the Windows/macOS target-aware scan.
 - Cargo.lock includes Tauri's Linux-only GTK `glib 0.18.5`; its unsoundness advisory is unreachable on all supported release targets and is classified `not_used`, but must be reassessed if Linux becomes supported.
 - The owner-authorized privacy rewrite replaced personal author/committer metadata across all nine historical `main` commits with GitHub noreply metadata while preserving the source tree and commit topology. Rewritten historical signatures are no longer valid, but required signed commits is restored for future `main` changes. GitHub email privacy, exposed-email push blocking, and the required CI metadata check prevent recurrence. Provider-managed pull-request/cache dereferencing remains tracked in [the privacy rewrite record](docs/PRIVACY_HISTORY_REWRITE_RECORD.md).
+
+## Post-`v0.6.0` main hardening
+
+- [x] Add a test-only fixture that starts through the production `StdioTransport` and creates a real descendant only after Windows Job Object assignment
+- [x] Force-terminate the isolated packaged Tauri app and verify the fixture parent and descendant both exit within five seconds; all three 2026-08-15 Windows runs recovered both within 627 ms with zero residual fixture or TamaGrid processes
+- [x] Rebuild the normal production binary without the test feature and confirm that the test command, environment-variable prefix, fixture name, and start-gate method have zero binary marker matches
+- [ ] Run an equivalent packaged forced-crash recovery test on native macOS. The existing native process-group termination unit test and owner-reported app Pass do not substitute for that evidence
+- This hardening is after the immutable `v0.6.0` tag and is not present in its published assets. It becomes release evidence only after a later reviewed tag/build gate

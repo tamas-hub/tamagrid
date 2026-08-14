@@ -88,6 +88,6 @@ Tauri windowはlocal bundleだけを読み込み、Content Security Policyでdef
 - ユーザーが内容を確認してapprovalしたcommandやfile change
 - Authenticode未署名 / Developer ID未notarized preview binaryに対するOS警告
 - Tauri transitive dependencyに残るunmaintained Unicode crate群（既知vulnerabilityは別途継続監視）
-- Tauri Channel自体の内部実装はTamaGridからhard-boundできない。送信前delta bufferとWebView受信queueはbounded/coalesced化し、両層で100,000 deltaのpayload保持・上限試験を通過。Windows packaged Tauri / WebViewでも3分間・9,000 delta・2,304,000 bytesを欠落0、終了後の残留process 0で完走。macOS実機はrepository ownerがPass報告したが、package hash・機種・OS・項目別証拠と強制crash時の同等確認は継続課題
+- Tauri Channel自体の内部実装はTamaGridからhard-boundできない。送信前delta bufferとWebView受信queueはbounded/coalesced化し、両層で100,000 deltaのpayload保持・上限試験を通過。Windows packaged Tauri / WebViewでも3分間・9,000 delta・2,304,000 bytesを欠落0で完走。後続`main`の隔離強制crash試験3回ではproductionと同じJob Object内のfixture親・孫processをすべて627 ms以内で回収、残留0を確認。macOS実機はrepository ownerがPass報告したが、package hash・機種・OS・項目別証拠とpackaged強制crash時の同等確認は継続課題
 
 SmartScreenやGatekeeperを無効化せず、release origin、SHA-256、GitHub attestationを確認してください。Artifact AttestationはOS code signingの代替ではありません。

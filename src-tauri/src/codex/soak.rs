@@ -1,16 +1,27 @@
 use std::{
-    env, fs,
+    env,
+    ffi::OsStr,
+    fs,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::{ipc::Channel, AppHandle};
-use tokio::time::{sleep, sleep_until, Instant};
+use tauri::{ipc::Channel, AppHandle, State};
+use tokio::{
+    sync::Mutex,
+    time::{sleep, sleep_until, Instant},
+};
 
-use super::protocol::AppServerEvent;
+use super::{
+    protocol::AppServerEvent,
+    transport::{AppServerTransport, StdioTransport},
+};
 
 const SOAK_GENERATION: u64 = 1;
 const SOAK_TURN_ID: &str = "tamagrid-packaged-soak-turn";
@@ -21,8 +32,15 @@ const MIN_DURATION_MS: u64 = 1_000;
 const MAX_DURATION_MS: u64 = 600_000;
 const MAX_REPORT_BYTES: usize = 64 * 1024;
 const RESULT_PATH_ENV: &str = "TAMAGRID_SOAK_RESULT_PATH";
+const PROCESS_TREE_FIXTURE_PATH_ENV: &str = "TAMAGRID_SOAK_PROCESS_TREE_FIXTURE_PATH";
+const PROCESS_TREE_RESULT_PATH_ENV: &str = "TAMAGRID_SOAK_PROCESS_TREE_RESULT_PATH";
 
 static SOAK_STARTED: AtomicBool = AtomicBool::new(false);
+
+#[derive(Default)]
+pub struct ProcessTreeProbeState {
+    transport: Mutex<Option<Arc<StdioTransport>>>,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -49,6 +67,7 @@ pub async fn run_protocol_soak(
     app: AppHandle,
     on_event: Channel<AppServerEvent>,
     params: ProtocolSoakParams,
+    process_tree_probe: State<'_, ProcessTreeProbeState>,
 ) -> Result<Value, String> {
     if params.thread_id.trim().is_empty() || params.thread_id.len() > 512 {
         return Err("The packaged soak thread id is invalid".into());
@@ -76,6 +95,22 @@ pub async fn run_protocol_soak(
         turn_id: SOAK_TURN_ID,
         item_id: SOAK_ITEM_ID,
     };
+
+    if env::var_os(PROCESS_TREE_FIXTURE_PATH_ENV).is_some() {
+        start_process_tree_crash_probe(&on_event, process_tree_probe.inner()).await?;
+        // The outer runner terminates this Tauri process after the fixture has
+        // reported both PIDs. Do not emit a terminal event or arm the normal
+        // renderer timeout in this deliberately interrupted run.
+        return Ok(json!({
+            "turn": {
+                "id": SOAK_TURN_ID,
+                "status": "inProgress",
+                "items": [],
+                "error": null
+            },
+            "soak": descriptor
+        }));
+    }
 
     let task_descriptor = descriptor.clone();
     let task_app = app.clone();
@@ -284,27 +319,93 @@ fn unix_time_ms() -> u128 {
 }
 
 fn result_path() -> Result<PathBuf, String> {
-    let raw =
-        env::var(RESULT_PATH_ENV).map_err(|_| format!("{RESULT_PATH_ENV} is not configured"))?;
+    json_output_path(RESULT_PATH_ENV, "packaged soak")
+}
+
+async fn start_process_tree_crash_probe(
+    channel: &Channel<AppServerEvent>,
+    state: &ProcessTreeProbeState,
+) -> Result<(), String> {
+    let executable = process_tree_fixture_path()?;
+    let report_path = json_output_path(PROCESS_TREE_RESULT_PATH_ENV, "process-tree")?;
+    if report_path.exists() {
+        return Err("The process-tree result file already exists".into());
+    }
+
+    let mut slot = state.transport.lock().await;
+    if slot.is_some() {
+        return Err("The process-tree crash probe is already active".into());
+    }
+    let transport = StdioTransport::spawn(executable, SOAK_GENERATION, channel.clone())
+        .await
+        .map_err(|error| format!("Could not start the process-tree fixture: {error}"))?;
+    if let Err(error) = transport
+        .notify("tamagrid/processTreeCrashProbe", json!({}))
+        .await
+    {
+        let _ = transport.shutdown().await;
+        return Err(format!(
+            "Could not release the process-tree fixture start gate: {error}"
+        ));
+    }
+    *slot = Some(transport);
+    Ok(())
+}
+
+fn process_tree_fixture_path() -> Result<PathBuf, String> {
+    let raw = env::var(PROCESS_TREE_FIXTURE_PATH_ENV)
+        .map_err(|_| format!("{PROCESS_TREE_FIXTURE_PATH_ENV} is not configured"))?;
     let requested = PathBuf::from(raw);
     if !requested.is_absolute() {
-        return Err("The packaged soak result path must be absolute".into());
+        return Err("The process-tree fixture path must be absolute".into());
+    }
+    let canonical = requested
+        .canonicalize()
+        .map_err(|error| format!("The process-tree fixture is unavailable: {error}"))?;
+    if !canonical.is_file() {
+        return Err("The process-tree fixture must be a file".into());
+    }
+    let expected_name = if cfg!(windows) {
+        "tamagrid-process-tree-fixture.exe"
+    } else {
+        "tamagrid-process-tree-fixture"
+    };
+    if canonical.file_name() != Some(OsStr::new(expected_name)) {
+        return Err("The process-tree fixture has an unexpected file name".into());
+    }
+    let current_executable = env::current_exe()
+        .and_then(|path| path.canonicalize())
+        .map_err(|error| format!("Could not locate the packaged soak executable: {error}"))?;
+    if canonical.parent() != current_executable.parent() {
+        return Err("The process-tree fixture must be next to the packaged soak executable".into());
+    }
+    Ok(canonical)
+}
+
+fn json_output_path(environment_name: &str, label: &str) -> Result<PathBuf, String> {
+    let raw =
+        env::var(environment_name).map_err(|_| format!("{environment_name} is not configured"))?;
+    let requested = PathBuf::from(raw);
+    if !requested.is_absolute() {
+        return Err(format!("The {label} result path must be absolute"));
     }
     let parent = requested
         .parent()
-        .ok_or_else(|| "The packaged soak result path has no parent".to_string())?;
+        .ok_or_else(|| format!("The {label} result path has no parent"))?;
     let canonical_parent = parent
         .canonicalize()
-        .map_err(|error| format!("The packaged soak result directory is unavailable: {error}"))?;
+        .map_err(|error| format!("The {label} result directory is unavailable: {error}"))?;
     let file_name = requested
         .file_name()
-        .ok_or_else(|| "The packaged soak result path has no file name".to_string())?;
+        .ok_or_else(|| format!("The {label} result path has no file name"))?;
     if Path::new(file_name)
         .extension()
         .and_then(|value| value.to_str())
         != Some("json")
     {
-        return Err("The packaged soak result file must use the .json extension".into());
+        return Err(format!(
+            "The {label} result file must use the .json extension"
+        ));
     }
     Ok(canonical_parent.join(file_name))
 }
