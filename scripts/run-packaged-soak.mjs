@@ -35,6 +35,7 @@ try {
       ...process.env,
       VITE_TAMAGRID_SOAK: "1",
       VITE_TAMAGRID_SOAK_DURATION_MS: String(options.durationMs),
+      VITE_TAMAGRID_SOAK_MAX_FRAME_GAP_MS: String(options.maxFrameGapMs),
     });
   }
 
@@ -70,6 +71,7 @@ try {
 
 function parseOptions(args) {
   let durationMs = 180_000;
+  let maxFrameGapMs = 1_500;
   let target;
   let skipBuild = false;
   for (let index = 0; index < args.length; index += 1) {
@@ -78,6 +80,8 @@ function parseOptions(args) {
       continue;
     } else if (argument === "--duration-ms") {
       durationMs = Number(args[++index]);
+    } else if (argument === "--max-frame-gap-ms") {
+      maxFrameGapMs = Number(args[++index]);
     } else if (argument === "--target") {
       target = args[++index];
     } else if (argument === "--skip-build") {
@@ -93,10 +97,17 @@ function parseOptions(args) {
   ) {
     throw new Error("--duration-ms must be an integer from 1000 to 600000");
   }
+  if (
+    !Number.isSafeInteger(maxFrameGapMs) ||
+    maxFrameGapMs < 250 ||
+    maxFrameGapMs > 10_000
+  ) {
+    throw new Error("--max-frame-gap-ms must be an integer from 250 to 10000");
+  }
   if (target !== undefined && !/^[a-zA-Z0-9_-]+$/.test(target)) {
     throw new Error("--target contains unsupported characters");
   }
-  return { durationMs, target, skipBuild };
+  return { durationMs, maxFrameGapMs, target, skipBuild };
 }
 
 function runProcess(command, args, environment, timeoutMs) {

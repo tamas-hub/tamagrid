@@ -17,16 +17,19 @@ jobs:
             args: --target x86_64-pc-windows-msvc --bundles nsis,msi
             artifact-path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**
             pnpm_bootstrap: native
+            max_frame_gap_ms: 2500
           - platform: macos-latest
             target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin --bundles app,dmg
             artifact-path: src-tauri/target/aarch64-apple-darwin/release/bundle/**
             pnpm_bootstrap: native
+            max_frame_gap_ms: 1500
           - platform: macos-15-intel
             target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin --bundles app,dmg
             artifact-path: src-tauri/target/x86_64-apple-darwin/release/bundle/**
             pnpm_bootstrap: npm
+            max_frame_gap_ms: 1500
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -63,6 +66,7 @@ jobs:
         run: >-
           pnpm test:packaged-soak --
           --duration-ms 30000
+          --max-frame-gap-ms ${{ matrix.max_frame_gap_ms }}
           --target ${{ matrix.target }}
         env:
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}

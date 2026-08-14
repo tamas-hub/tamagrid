@@ -93,7 +93,7 @@ Codex更新後は `pnpm check:app-server-schema` を実行すると、shellを�
 
 `packaged-soak-test` Rust featureと `VITE_TAMAGRID_SOAK=1` を同時に指定した場合だけ、通常版と異なるproduct identifierの隔離appがtest用Channel commandを公開します。test bridgeはCodex process、account、credential、thread history、利用枠へ接続せず、決定的なASCII deltaをRustから実際のTauri Channel、WebView、React state、timelineへ流します。
 
-runnerはevent件数、UTF-8 byte数、sequence gap、animation-frame heartbeat、authoritative item / turn完了、最新行追従、終了codeを検査します。Windowsでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 msで完走し、別のOS process観測で終了後のapp / direct WebView child残留0も確認しました。manual Bundle smokeはWindows x64 / macOS arm64 / macOS x64それぞれで30秒の同試験をbundle前に実行します。通常のCIとrelease buildは `VITE_TAMAGRID_SOAK=0` を明示し、non-default Rust featureを有効にしないため、配布binaryにはtest commandを含めません。
+runnerはevent件数、UTF-8 byte数、sequence gap、animation-frame heartbeat、authoritative item / turn完了、最新行追従、終了codeを検査します。Windowsでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 msで完走し、別のOS process観測で終了後のapp / direct WebView child残留0も確認しました。manual Bundle smokeはWindows x64 / macOS arm64 / macOS x64それぞれで30秒の同試験をbundle前に実行します。実機向けframe-gap上限は既定1.5秒のまま、共有Windows runnerでは一時的なVM schedulingをapp hangと誤判定しないよう2.5秒を明示し、適用した上限もreportへ記録します。通常のCIとrelease buildは `VITE_TAMAGRID_SOAK=0` を明示し、non-default Rust featureを有効にしないため、配布binaryにはtest commandを含めません。
 
 ## Persistence
 

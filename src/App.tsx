@@ -24,6 +24,7 @@ import {
   createCodexBridge,
   isPackagedSoakBuild,
   isJsonObject,
+  packagedSoakMaxFrameGapMs,
   PACKAGED_SOAK_ITEM_ID,
   startPackagedSoakFrameMonitor,
   submitPackagedSoakReport,
@@ -878,6 +879,7 @@ function App() {
         ? timeline.scrollHeight - timeline.clientHeight - timeline.scrollTop
         : Number.POSITIVE_INFINITY;
       const failures: string[] = [];
+      const maxFrameGapThresholdMs = packagedSoakMaxFrameGapMs();
       if (channel.receivedDeltaEvents !== channel.descriptor.deltaEvents)
         failures.push("delta event count mismatch");
       if (channel.receivedDeltaBytes !== channel.descriptor.expectedDeltaBytes)
@@ -890,8 +892,10 @@ function App() {
         failures.push("stream completed too early");
       if (frame.frames < Math.max(30, channel.descriptor.durationMs / 100))
         failures.push("animation frame heartbeat was too sparse");
-      if (frame.maxFrameGapMs >= 1_500)
-        failures.push("WebView was unresponsive for at least 1.5 seconds");
+      if (frame.maxFrameGapMs >= maxFrameGapThresholdMs)
+        failures.push(
+          `WebView was unresponsive for at least ${maxFrameGapThresholdMs} ms`,
+        );
       if (pane?.status !== "Done")
         failures.push("pane did not reach the Done state");
       if (pane?.activeTurnId !== undefined)
@@ -919,6 +923,7 @@ function App() {
         sequenceGaps: channel.sequenceGaps,
         animationFrames: frame.frames,
         maxFrameGapMs: Math.round(frame.maxFrameGapMs),
+        maxFrameGapThresholdMs,
         finalPaneStatus: pane?.status ?? "missing",
         activeTurnCleared: pane?.activeTurnId === undefined,
         renderedAssistantChars: renderedAssistant?.textContent?.length ?? 0,

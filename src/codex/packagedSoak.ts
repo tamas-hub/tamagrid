@@ -12,6 +12,7 @@ export const PACKAGED_SOAK_ITEM_ID = "tamagrid-packaged-soak-item";
 
 const PACKAGED_SOAK_BUILD = import.meta.env.VITE_TAMAGRID_SOAK === "1";
 const DEFAULT_SOAK_DURATION_MS = 180_000;
+const DEFAULT_MAX_FRAME_GAP_MS = 1_500;
 const COMPLETION_GRACE_MS = 45_000;
 const textEncoder = new TextEncoder();
 
@@ -309,6 +310,18 @@ export function startPackagedSoakFrameMonitor(): PackagedSoakFrameMonitor {
       return snapshot();
     },
   };
+}
+
+export function packagedSoakMaxFrameGapMs(): number {
+  const configured = Number(
+    import.meta.env.VITE_TAMAGRID_SOAK_MAX_FRAME_GAP_MS ??
+      DEFAULT_MAX_FRAME_GAP_MS,
+  );
+  return Number.isSafeInteger(configured) &&
+    configured >= 250 &&
+    configured <= 10_000
+    ? configured
+    : DEFAULT_MAX_FRAME_GAP_MS;
 }
 
 function createTracker(): PackagedSoakTracker {
