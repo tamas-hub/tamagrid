@@ -8,7 +8,7 @@ describe("Header", () => {
     const onFontScaleChange = vi.fn();
     const onLayoutChange = vi.fn();
     const onThemeChange = vi.fn();
-    render(
+    const { container } = render(
       <Header
         connected
         usage={{
@@ -18,16 +18,24 @@ describe("Header", () => {
         }}
         fontScale={1}
         onFontScaleChange={onFontScaleChange}
+        onHistory={vi.fn()}
         onLayoutChange={onLayoutChange}
         onThemeChange={onThemeChange}
       />,
     );
 
+    const controlRail = container.querySelector(".ad-header-control-rail");
+    const statusRail = container.querySelector(".ad-header-status-rail");
+    const historyButton = screen.getByRole("button", {
+      name: "過去の履歴を開く",
+    });
+    expect(controlRail?.firstElementChild).toBe(statusRail);
+    expect(statusRail?.nextElementSibling).toBe(historyButton);
     expect(
       screen.getByRole("button", { name: /Codex残り使用量 66%/ }),
     ).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "文字を大きくする" }));
-    expect(onFontScaleChange).toHaveBeenCalledWith(1.05);
+    expect(onFontScaleChange).toHaveBeenCalledWith(1.1);
     fireEvent.change(screen.getByLabelText("ペインレイアウト"), {
       target: { value: "grid-4" },
     });

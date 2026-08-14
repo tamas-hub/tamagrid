@@ -6,6 +6,8 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import packageMetadata from "../../package.json";
 import type {
   CodexReviewTarget,
   CodexUsageSummary,
@@ -29,7 +31,7 @@ const glyph: Record<string, string> = {
   Error: "×",
 };
 
-const COMPOSER_MIN_LINES = 1;
+const COMPOSER_MIN_LINES = 3;
 const COMPOSER_MAX_LINES = 10;
 
 function fitComposerHeight(textarea: HTMLTextAreaElement, hasContent: boolean) {
@@ -52,15 +54,70 @@ function fitComposerHeight(textarea: HTMLTextAreaElement, hasContent: boolean) {
     textarea.scrollHeight > maximumHeight ? "auto" : "hidden";
 }
 
+function isTauriRuntime() {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+function runWindowAction(
+  action: (appWindow: ReturnType<typeof getCurrentWindow>) => Promise<void>,
+) {
+  if (!isTauriRuntime()) return;
+  void action(getCurrentWindow()).catch(() => undefined);
+}
+
+function WindowControls() {
+  const { t } = useI18n();
+  const native = isTauriRuntime();
+  return (
+    <div
+      className={`window-controls${native ? " is-native" : ""}`}
+      aria-hidden={!native}
+    >
+      <button
+        type="button"
+        className="window-control"
+        tabIndex={native ? 0 : -1}
+        aria-label={t("window.minimize")}
+        title={t("window.minimize")}
+        onClick={() => runWindowAction((appWindow) => appWindow.minimize())}
+      >
+        <span aria-hidden="true">—</span>
+      </button>
+      <button
+        type="button"
+        className="window-control"
+        tabIndex={native ? 0 : -1}
+        aria-label={t("window.maximizeRestore")}
+        title={t("window.maximizeRestore")}
+        onClick={() =>
+          runWindowAction((appWindow) => appWindow.toggleMaximize())
+        }
+      >
+        <span aria-hidden="true">▢</span>
+      </button>
+      <button
+        type="button"
+        className="window-control window-close"
+        tabIndex={native ? 0 : -1}
+        aria-label={t("window.close")}
+        title={t("window.close")}
+        onClick={() => runWindowAction((appWindow) => appWindow.close())}
+      >
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
+  );
+}
+
 export function Header({
   connected = false,
   connecting = false,
   modelSource = "none",
   usage,
   fontScale = 1,
-  fontScaleMin = 0.85,
+  fontScaleMin = 0.9,
   fontScaleMax = 2,
-  fontScaleStep = 0.05,
+  fontScaleStep = 0.1,
   layout = "split-2",
   theme = "aurora",
   onSettings,
@@ -78,30 +135,34 @@ export function Header({
       ? t("header.connected")
       : t("common.offline");
   return (
-    <header className="ad-header">
-      <div className="ad-header-brand">
-        <span className="ad-mark" aria-hidden="true">
+    <header className="ad-header" data-tauri-drag-region>
+      <div className="ad-header-brand" data-tauri-drag-region>
+        <span className="ad-mark" aria-hidden="true" data-tauri-drag-region>
           ◆
         </span>
-        <span className="ad-brand-lockup">
-          <span className="ad-brand">TamaGrid</span>
-          <span className="ad-kicker">COCKPIT</span>
+        <span className="ad-brand-lockup" data-tauri-drag-region>
+          <span className="ad-brand" data-tauri-drag-region>
+            TamaGrid
+          </span>
+          <span className="ad-kicker" data-tauri-drag-region>
+            COCKPIT
+          </span>
         </span>
       </div>
-      <div className="ad-header-actions">
-        <div className="ad-header-status-rail">
-          {modelSource === "cache" && (
-            <span className="cache-label">{t("header.cachedModels")}</span>
-          )}
-          <span
-            className={`connection ${connected ? "online" : ""} ${connecting ? "connecting" : ""}`}
-          >
-            <i />
-            {connectionLabel}
-          </span>
-          <UsageMeter usage={usage} onClick={onUsageOpen} />
-        </div>
+      <div className="ad-header-actions" data-tauri-drag-region>
         <div className="ad-header-control-rail">
+          <div className="ad-header-status-rail">
+            {modelSource === "cache" && (
+              <span className="cache-label">{t("header.cachedModels")}</span>
+            )}
+            <span
+              className={`connection ${connected ? "online" : ""} ${connecting ? "connecting" : ""}`}
+            >
+              <i />
+              {connectionLabel}
+            </span>
+            <UsageMeter usage={usage} onClick={onUsageOpen} />
+          </div>
           {onHistory && (
             <button
               type="button"
@@ -195,6 +256,7 @@ export function Header({
           )}
         </div>
       </div>
+      <WindowControls />
     </header>
   );
 }
@@ -677,6 +739,89 @@ export function AgentPane({
         </div>
       )}
       <form className="composer" onSubmit={submit}>
+        <div className="composer-input-row">
+          <textarea
+            ref={composerInput}
+            rows={COMPOSER_MIN_LINES}
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder={
+              runDisabled
+                ? t("composer.connect")
+                : pane.status === "Approval"
+                  ? t("composer.answerApproval")
+                  : pane.status === "Running"
+                    ? steerDisabled
+                      ? t("composer.reviewRunning")
+                      : t("composer.steerPlaceholder")
+                    : t("composer.placeholder")
+            }
+            aria-label={t("composer.label")}
+            disabled={
+              disabled ||
+              runDisabled ||
+              pane.status === "Approval" ||
+              (pane.status === "Running" && steerDisabled)
+            }
+            onKeyDown={(event) => {
+              if (
+                event.key !== "Enter" ||
+                event.nativeEvent.isComposing ||
+                event.nativeEvent.keyCode === 229
+              )
+                return;
+              const shouldSend =
+                sendMode === "enter"
+                  ? !event.shiftKey
+                  : Boolean(event.metaKey || event.ctrlKey);
+              if (shouldSend) {
+                event.preventDefault();
+                sendMessage();
+              }
+            }}
+          />
+          <div className="composer-actions">
+            {pane.status === "Running" ? (
+              <>
+                <button
+                  type="submit"
+                  className="steer composer-action"
+                  disabled={runDisabled || steerDisabled || !message.trim()}
+                  aria-label={t("composer.steer")}
+                  title={t("composer.steer")}
+                >
+                  <span aria-hidden="true">↳</span>
+                </button>
+                <button
+                  type="button"
+                  className="stop composer-action"
+                  onClick={onStop}
+                  disabled={runDisabled}
+                  aria-label={t("composer.stop")}
+                  title={t("composer.stop")}
+                >
+                  <span aria-hidden="true">■</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="submit"
+                className="send composer-action"
+                disabled={
+                  disabled ||
+                  runDisabled ||
+                  !message.trim() ||
+                  Boolean(pane.unavailableModel) ||
+                  pane.status === "Approval"
+                }
+                aria-label={t("composer.send")}
+                title={t("composer.send")}
+              >
+                <span aria-hidden="true">↑</span>
+              </button>
+            )}
+          </div>
+        </div>
         <div className="composer-toolbar">
           <label className="composer-select composer-model">
             <span>{t("pane.model")}</span>
@@ -976,89 +1121,6 @@ export function AgentPane({
           </section>
         )}
 
-        <div className="composer-input-row">
-          <textarea
-            ref={composerInput}
-            rows={COMPOSER_MIN_LINES}
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder={
-              runDisabled
-                ? t("composer.connect")
-                : pane.status === "Approval"
-                  ? t("composer.answerApproval")
-                  : pane.status === "Running"
-                    ? steerDisabled
-                      ? t("composer.reviewRunning")
-                      : t("composer.steerPlaceholder")
-                    : t("composer.placeholder")
-            }
-            aria-label={t("composer.label")}
-            disabled={
-              disabled ||
-              runDisabled ||
-              pane.status === "Approval" ||
-              (pane.status === "Running" && steerDisabled)
-            }
-            onKeyDown={(event) => {
-              if (
-                event.key !== "Enter" ||
-                event.nativeEvent.isComposing ||
-                event.nativeEvent.keyCode === 229
-              )
-                return;
-              const shouldSend =
-                sendMode === "enter"
-                  ? !event.shiftKey
-                  : Boolean(event.metaKey || event.ctrlKey);
-              if (shouldSend) {
-                event.preventDefault();
-                sendMessage();
-              }
-            }}
-          />
-          <div className="composer-actions">
-            {pane.status === "Running" ? (
-              <>
-                <button
-                  type="submit"
-                  className="steer composer-action"
-                  disabled={runDisabled || steerDisabled || !message.trim()}
-                  aria-label={t("composer.steer")}
-                  title={t("composer.steer")}
-                >
-                  <span aria-hidden="true">↳</span>
-                </button>
-                <button
-                  type="button"
-                  className="stop composer-action"
-                  onClick={onStop}
-                  disabled={runDisabled}
-                  aria-label={t("composer.stop")}
-                  title={t("composer.stop")}
-                >
-                  <span aria-hidden="true">■</span>
-                </button>
-              </>
-            ) : (
-              <button
-                type="submit"
-                className="send composer-action"
-                disabled={
-                  disabled ||
-                  runDisabled ||
-                  !message.trim() ||
-                  Boolean(pane.unavailableModel) ||
-                  pane.status === "Approval"
-                }
-                aria-label={t("composer.send")}
-                title={t("composer.send")}
-              >
-                <span aria-hidden="true">↑</span>
-              </button>
-            )}
-          </div>
-        </div>
         <div className="composer-footer">
           <span className="hint">
             {sendMode === "enter"
@@ -1286,9 +1348,9 @@ export function SettingsModal({
   connectionError,
   usage,
   fontScale = 1,
-  fontScaleMin = 0.85,
+  fontScaleMin = 0.9,
   fontScaleMax = 2,
-  fontScaleStep = 0.05,
+  fontScaleStep = 0.1,
   theme = "aurora",
   language = "en",
   sendMode = "modifier-enter",
@@ -1391,26 +1453,54 @@ export function SettingsModal({
             × {connectionError}
           </div>
         )}
-        <div className="connection-details">
-          <span>
-            TamaGrid <b>0.5.0</b>
-          </span>
-          <span>
-            Codex <b>{version}</b>
-          </span>
-          <span>
-            {t("settings.appServer")}{" "}
-            <b>
-              {connecting
-                ? t("common.starting")
-                : connected
-                  ? t("common.ready")
-                  : t("common.offline")}
-            </b>
-          </span>
-          <span>
-            {t("settings.authentication")} <b>{authStatusLabel}</b>
-          </span>
+        <div className="connection-details" aria-label={t("settings.status")}>
+          <div className="connection-status-list">
+            <span className="connection-detail">
+              <span>TamaGrid</span> <b>{packageMetadata.version}</b>
+            </span>
+            <span className="connection-detail">
+              <span>Codex</span> <b>{version}</b>
+            </span>
+            <span className="connection-detail">
+              <span>{t("settings.appServer")}</span>{" "}
+              <b>
+                {connecting
+                  ? t("common.starting")
+                  : connected
+                    ? t("common.ready")
+                    : t("common.offline")}
+              </b>
+            </span>
+            <span className="connection-detail">
+              <span>{t("settings.authentication")}</span>{" "}
+              <b>{authStatusLabel}</b>
+            </span>
+          </div>
+          <div
+            className="connection-language-options"
+            role="radiogroup"
+            aria-label={t("settings.languageTitle")}
+          >
+            {(["en", "ja"] as const).map((option) => {
+              const code = option === "en" ? "EN" : "JP";
+              const name =
+                option === "en"
+                  ? t("settings.english")
+                  : t("settings.japanese");
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  className="connection-language-option"
+                  aria-label={`${code} — ${name}`}
+                  aria-pressed={language === option}
+                  onClick={() => onLanguageChange?.(option)}
+                >
+                  {code}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <section
           className="settings-section usage-section"
@@ -1578,40 +1668,6 @@ export function SettingsModal({
             </button>
           </div>
           <p className="field-help">{t("settings.sendModeHelp")}</p>
-        </section>
-        <section className="settings-section" aria-labelledby="language-title">
-          <div className="settings-section-head">
-            <div>
-              <span className="section-kicker">LANGUAGE</span>
-              <h3 id="language-title">{t("settings.languageTitle")}</h3>
-            </div>
-          </div>
-          <div
-            className="language-options"
-            role="radiogroup"
-            aria-label={t("settings.languageTitle")}
-          >
-            {(["en", "ja"] as const).map((option) => {
-              const code = option === "en" ? "EN" : "JP";
-              const name =
-                option === "en"
-                  ? t("settings.english")
-                  : t("settings.japanese");
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  className="language-option"
-                  aria-label={`${code} — ${name}`}
-                  aria-pressed={language === option}
-                  onClick={() => onLanguageChange?.(option)}
-                >
-                  <strong aria-hidden="true">{code}</strong>
-                </button>
-              );
-            })}
-          </div>
-          <p className="field-help">{t("settings.languageHelp")}</p>
         </section>
         <section className="settings-section" aria-labelledby="theme-title">
           <div className="settings-section-head">

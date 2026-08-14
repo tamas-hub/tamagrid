@@ -60,7 +60,8 @@ This checklist separates completed source/repository work, the published Public 
 - [x] Add and review a custom 1280×640 repository social-preview image
 - [x] Perform manual Windows installer and UI smoke tests on an installed build
 - [ ] Perform native macOS launch, history-resume, picker, approval, and shutdown checks using [`docs/MACOS_MANUAL_TEST.md`](docs/MACOS_MANUAL_TEST.md) (both native architecture builds already pass)
-- [ ] Run and inspect the updated three-platform Bundle smoke from the `v0.6.0` candidate; each target now gates bundling on a 30-second packaged Tauri / WebView Channel test
+- [x] Run and inspect the updated three-platform Bundle smoke from the `v0.6.0` candidate; Windows x64, macOS arm64, and macOS x64 all passed the 30-second packaged Tauri / WebView Channel gate in [run 31777776881](https://github.com/tamas-hub/tamagrid/actions/runs/31777776881)
+- [ ] Rebuild the exact merged `main` candidate and complete Windows clean-install, `v0.5.0` upgrade, launch, and uninstall smoke checks before tagging `v0.6.0`
 - [x] Push `v0.5.0` from protected `main` only after explicit owner authorization
 - [x] Verify every draft-release hash and `gh attestation verify` result
 - [x] Confirm `RELEASE_NOTES.md`, `THIRD_PARTY_NOTICES.md`, and `tamagrid-js.cdx.json` are attached and covered by `SHA256SUMS.txt`
@@ -85,7 +86,7 @@ This checklist separates completed source/repository work, the published Public 
 - macOS artifacts are not Developer ID signed or notarized.
 - GitHub Artifact Attestation proves workflow provenance but does not replace platform code signing.
 - Repository-level immutable releases prevent modification after publication, but do not establish publisher identity or replace platform code signing.
-- High-frequency deltas are bounded/coalesced before the Tauri Channel and again in the renderer. Both queue layers preserve the full payload under a 100,000-delta automated stress test. A three-minute Windows packaged Tauri / WebView test also completed without loss or residual processes. The updated 30-second three-platform workflow has not yet been dispatched from the unpublished `v0.6.0` candidate, and native macOS manual validation remains open.
+- High-frequency deltas are bounded/coalesced before the Tauri Channel and again in the renderer. Both queue layers preserve the full payload under a 100,000-delta automated stress test. A three-minute Windows packaged Tauri / WebView test also completed without loss or residual processes. The updated 30-second three-platform workflow passed on Windows x64, macOS arm64, and macOS x64; native macOS manual validation remains open.
 - Tauri currently brings five `unic-*` unmaintained advisories through `tauri-utils -> urlpattern`; no severity-bearing exploit advisory was identified in the Windows/macOS target-aware scan.
 - Cargo.lock includes Tauri's Linux-only GTK `glib 0.18.5`; its unsoundness advisory is unreachable on all supported release targets and is classified `not_used`, but must be reassessed if Linux becomes supported.
 - The owner-authorized privacy rewrite replaced personal author/committer metadata across all nine historical `main` commits with GitHub noreply metadata while preserving the source tree and commit topology. Rewritten historical signatures are no longer valid, but required signed commits is restored for future `main` changes. GitHub email privacy, exposed-email push blocking, and the required CI metadata check prevent recurrence. Provider-managed pull-request/cache dereferencing remains tracked in [the privacy rewrite record](docs/PRIVACY_HISTORY_REWRITE_RECORD.md).

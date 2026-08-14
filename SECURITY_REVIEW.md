@@ -195,6 +195,7 @@
 - `dangerouslySetInnerHTML`、`innerHTML`、`eval`、`new Function`、`document.write`、`postMessage`、remote `fetch`、WebSocket、service worker、iframe、remote scriptは検出なし。
 - Codex/モデル出力はReact text nodeとして描画され、HTMLとして解釈されません。
 - Tauri CSPが有効で、scriptはselfへ限定され、`unsafe-eval` とscript用 `unsafe-inline` はありません。remote script/fontもありません。TauriはCSPをXSSの影響低減に使い、信頼するsourceへ絞るよう推奨しています。[Tauri CSP](https://v2.tauri.app/security/csp/)
+- frameless Headerはmain windowだけを対象に、最小化、最大化切替、終了、drag開始の4 permissionだけを明示許可しています。shell、Opener、任意navigation権限は追加していません。
 - OpenAI API key、session token、email、usage snapshot、message body、command outputをlocalStorageへ保存していません。
 - secret-like filenameおよび代表的token/private-key patternのproject scanは0件。
 - App Serverはshellを介さずfixed `app-server` argvで起動し、stdout/stderrを分離しています。

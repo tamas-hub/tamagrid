@@ -78,8 +78,9 @@ describe("model reconciliation", () => {
 
 describe("font scale normalization", () => {
   it("keeps supported steps and clamps unsafe persisted values", () => {
-    expect(normalizeFontScale(1.15)).toBeCloseTo(1.15);
-    expect(normalizeFontScale(0.1)).toBe(0.85);
+    expect(normalizeFontScale(1.14)).toBe(1.1);
+    expect(normalizeFontScale(1.16)).toBe(1.2);
+    expect(normalizeFontScale(0.1)).toBe(0.9);
     expect(normalizeFontScale(1.5)).toBe(1.5);
     expect(normalizeFontScale(2)).toBe(2);
     expect(normalizeFontScale(4)).toBe(2);

@@ -42,7 +42,7 @@ TamaGridは一般的なチャットクライアントではなく、複数の開
 - 複数のCodex taskを同時に監視したい個人開発者
 - terminalを複数開かず、approval・diff・進捗を1画面で確認したい人
 - modelやreasoning optionを固定せず、自分のCodex環境をそのまま利用したい人
-- 日本語 / English、85%〜200%の文字サイズ、keyboard操作を必要とする人
+- 日本語 / English、90%〜200%の文字サイズ、keyboard操作を必要とする人
 
 ## Features
 
@@ -54,9 +54,11 @@ TamaGridは一般的なチャットクライアントではなく、複数の開
 - 起動時・再接続時・認証変更時・手動操作での動的model discovery
 - App Serverが提示したreasoning effortだけを表示
 - Aurora、Dark、Light、Greenから選んで保存できるグラスモーフィズムCockpit UI
-- Englishを初期表示とし、設定のEN / JP切替で日本語へ即時変更。日時localeとともに端末へ保存
+- Englishを初期表示とし、接続status rail内のEN / JP切替で日本語へ即時変更。日時localeとともに端末へ保存
 - 全themeでnative selectの候補まで明示的な前景色・背景色を持つ高contrast UI
-- HeaderとSettingsから85%〜200%で変更・保存できるfont size
+- HeaderとSettingsから90%〜200%を10%刻みで変更・保存できるfont size
+- 3行を初期高として10行まで自動拡張し、model・reasoning controlsを入力欄の下へまとめたcompact composer
+- TamaGrid、接続状態、残り使用量、History、各操作、window controlsを1行にまとめたnative desktop header
 - Pane単位のapproval policy、sandbox、personality、reasoning summary、動的service tier。`never` / `danger-full-access` はturnごとにnative確認し、保存しない
 - Codex App Serverが返す残り使用量、利用枠、reset時刻のlive表示
 - assistant message、commandと終了code、file change、diff、plan、progress、errorのstreaming表示
@@ -70,6 +72,13 @@ TamaGridは一般的なチャットクライアントではなく、複数の開
 - 保存済みmodelが消えた場合に自動で似たmodelへ置換しない安全な復元
 - Windows / macOSを同一コードベースでbuildするTauri 2構成
 - 独自telemetryなし
+
+<details>
+<summary>Compact two-pane composer preview</summary>
+
+![TamaGrid compact two-pane layout with three-line composers](docs/screenshots/tamagrid-compact-composer.png)
+
+</details>
 
 ## Requirements
 

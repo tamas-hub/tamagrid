@@ -72,9 +72,9 @@ const WORKSPACE_KEY = "tamagrid.workspace.v1";
 const MODEL_CACHE_KEY = "tamagrid.models.v1";
 const LEGACY_WORKSPACE_KEY = "agentdeck.workspace.v1";
 const LEGACY_MODEL_CACHE_KEY = "agentdeck.models.v1";
-export const FONT_SCALE_MIN = 0.85;
+export const FONT_SCALE_MIN = 0.9;
 export const FONT_SCALE_MAX = 2;
-export const FONT_SCALE_STEP = 0.05;
+export const FONT_SCALE_STEP = 0.1;
 
 export function normalizeFontScale(value: unknown): number {
   const numeric =

@@ -4,8 +4,6 @@ TamaGridの利用者に影響する変更をこのファイルへ記録します
 
 ## [Unreleased]
 
-未公開の変更はありません。
-
 ## [0.6.0] - 2026-08-14
 
 ### Added
@@ -17,6 +15,11 @@ TamaGridの利用者に影響する変更をこのファイルへ記録します
 
 ### Changed
 
+- TamaGrid、接続状態、残り使用量、History、各操作、window controlsを1行のcommand railへ統合
+- 接続状態4項目とEN / JP切替を、横1行のcompact status railへ統合
+- 文字サイズ範囲を90%〜200%へ揃え、増減とsliderを10%刻みに変更
+- composer入力欄を初期3行・最大10行へ変更し、modelとreasoning controlsを入力欄の下へ移動
+- native title barをTamaGrid Headerへ統合し、drag・最小化・最大化・終了操作を追加
 - Rustとrendererのdelta queueをbounded / coalesced化し、各層100,000 deltaのpayload保持・上限試験を追加
 - event sequence割当とChannel送信を直列化し、terminal / approval / errorより前にpending deltaを順序どおりflush
 - Windows Job Objectの実descendant終了testと、native macOS上で実行するUnix process-group終了testを追加
