@@ -2,7 +2,7 @@
 
 Updated: 2026-08-14
 
-This checklist separates verified source/repository work from the remaining release gate. The public source repository exists; no tag or GitHub Release has been created.
+This checklist separates completed source/repository work, the published Public Preview, and the remaining platform validation. The public source repository and immutable `v0.5.0` prerelease are available on GitHub.
 
 ## Ready locally
 
@@ -50,14 +50,26 @@ This checklist separates verified source/repository work from the remaining rele
 - [x] Run unsigned bundle smoke from the hardened main commit on Windows x64, macOS arm64 and macOS x64; inspect all three nonempty workflow artifacts and verify expected package/architecture metadata
 - [x] Re-run all three bundles after the Intel-macOS pnpm fallback; inspect 3 artifacts / 22 nonempty files, verify architecture/metadata/hashes, and scan the downloaded tree with Microsoft Defender
 - [x] Classify `glib` advisory `GHSA-wrw7-89jp-8q8g` as not used only after locked target graphs prove it unreachable on supported Windows/macOS targets; keep RustSec monitoring and reassess before Linux support
-- [ ] Confirm draft-release Artifact Attestation permissions and verify every attestation after an explicitly authorized tag run
+- [x] Confirm draft-release Artifact Attestation permissions and verify every attestation after an explicitly authorized tag run
 - [ ] Review repository description, topics, social preview, license detection, and README rendering (description/topics/license completed; social preview and final rendered README remain)
-- [ ] Perform manual Windows UI smoke tests on an installed build
+- [x] Perform manual Windows installer and UI smoke tests on an installed build
 - [ ] Perform native macOS launch, history-resume, picker, approval, and shutdown checks (both native architecture builds already pass)
-- [ ] Push `v0.5.0` only after the above checks are complete
-- [ ] Verify every draft-release hash and `gh attestation verify` result
-- [ ] Confirm `RELEASE_NOTES.md`, `THIRD_PARTY_NOTICES.md`, and `tamagrid-js.cdx.json` are attached and covered by `SHA256SUMS.txt`
-- [ ] Publish the draft prerelease only after the owner completes the manual release gate
+- [x] Push `v0.5.0` from protected `main` only after explicit owner authorization
+- [x] Verify every draft-release hash and `gh attestation verify` result
+- [x] Confirm `RELEASE_NOTES.md`, `THIRD_PARTY_NOTICES.md`, and `tamagrid-js.cdx.json` are attached and covered by `SHA256SUMS.txt`
+- [x] Publish the draft prerelease only after the owner completes the manual release gate
+
+## Published `v0.5.0` evidence
+
+- Release: <https://github.com/tamas-hub/tamagrid/releases/tag/v0.5.0>
+- Tag commit: `c4b9425a0e92c4ed4a13e1b295b7df9401a2f414`, contained in protected `main`
+- Release workflow: <https://github.com/tamas-hub/tamagrid/actions/runs/31757215002>; quality, Windows x64, macOS arm64, macOS x64, checksums, and provenance verification succeeded
+- Assets: ten exact nonempty files; `SHA256SUMS.txt` covers the other nine files and all nine values were independently reproduced
+- Provenance: `gh attestation verify` succeeded for all ten files, including both downloadable `.app.tar.gz` archives
+- Package integrity: NSIS, MSI, two DMGs, and two `.app.tar.gz` archives passed independent structure/integrity checks
+- Malware scan: Microsoft Defender definition `1.457.150.0` reported no threats in the downloaded release tree with remediation disabled
+- Privacy: the release assets do not contain the clone's configured author email; text assets contain no email-formatted strings; the Git metadata privacy check passed
+- Publication: anonymous release-page access returned HTTP 200 and anonymous Windows installer retrieval returned HTTP 206; GitHub reports `draft=false`, `prerelease=true`, `immutable=true`, and ten assets
 
 ## Accepted public-preview limitations
 

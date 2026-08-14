@@ -1,8 +1,8 @@
 # GitHub publication and release preparation record
 
 Date: 2026-08-14
-Planned repository: `https://github.com/tamas-hub/tamagrid`
-Planned first release: `v0.5.0` Public Preview
+Repository: `https://github.com/tamas-hub/tamagrid`
+First release: `v0.5.0` Public Preview, published 2026-08-14
 
 This record distinguishes local preparation from actions that change GitHub or publish software.
 
@@ -18,9 +18,11 @@ In subsequent instructions on 2026-08-13, the owner authorized the initial publi
 
 The owner subsequently requested GitHub-publication hardening and then asked to eliminate weaknesses thoroughly. That authorized source hardening, a pull-request workflow, and reversible repository security/configuration changes required for a public project. It did not initially authorize a release/tag, installer upload, credential creation, or destructive rewrite/force-push of already published history.
 
-On 2026-08-14, the owner separately instructed that no personal email address remain and requested thorough remediation. That authorized the one-time privacy history rewrite, exact force-with-lease update of `main`, closure of stale Dependabot pull requests, removal of old Actions runs/artifacts/caches, and GitHub email-privacy controls documented below. It still did not authorize a tag, GitHub Release, installer upload, credential creation, visibility change, or repository deletion.
+On 2026-08-14, the owner separately instructed that no personal email address remain and requested thorough remediation. That authorized the one-time privacy history rewrite, exact force-with-lease update of `main`, closure of stale Dependabot pull requests, removal of old Actions runs/artifacts/caches, and GitHub email-privacy controls documented below. At that stage it still did not authorize a tag, GitHub Release, installer upload, credential creation, visibility change, or repository deletion.
 
-The following external actions remain outside the authorized scope and must not be performed without another explicit instruction:
+The owner later confirmed the rebuilt Windows installer and explicitly instructed the release work to continue. That authorized pushing the exact reviewed `v0.5.0` tag, creating and validating draft release assets, and publishing the validated draft as a public prerelease. It did not authorize repository transfer/deletion, visibility changes, secrets, paid signing credentials, or organization-wide setting changes.
+
+Before that later release authorization, the following actions were outside scope:
 
 - pushing tags, including `v0.5.0`
 - creating, uploading to or publishing a GitHub Release
@@ -107,6 +109,30 @@ Final Intel-fallback bundle-smoke hashes:
 | `TamaGrid_0.5.0_aarch64.dmg` | `BEC8B2DBC8798B114485AC9C7BC052BFCAD351209B12416E3A95234F5191D233` |
 | `TamaGrid_0.5.0_x64.dmg` | `259859B3406D437200AC75D7792476C3054CE918E0742E755A2D1BDE4D36653C` |
 
+### Published `v0.5.0` verification
+
+- Protected `main` CI succeeded at `c4b9425a0e92c4ed4a13e1b295b7df9401a2f414` before the tag was created.
+- Release workflow [31757215002](https://github.com/tamas-hub/tamagrid/actions/runs/31757215002) succeeded for the quality gate, Windows x64, macOS arm64, macOS x64, checksums, and provenance verification.
+- The final checksums job re-attested all six exact downloadable packages, including both generated `.app.tar.gz` files, and then verified every package attestation inside the workflow.
+- The draft contained ten exact nonempty assets. Independent download reproduced all nine hashes in `SHA256SUMS.txt`; the release notes and third-party notice were byte-identical to the tagged source; the CycloneDX 1.7 SBOM parsed with four production components.
+- Independent archive checks passed for NSIS, MSI, two DMGs, and two `.app.tar.gz` archives. Both Windows installers remained intentionally `NotSigned`.
+- `gh attestation verify` succeeded independently for all ten release assets. Microsoft Defender definition `1.457.150.0` scanned the downloaded release tree with remediation disabled and reported no threats.
+- The clone's configured author email was absent from all ten assets, no email-formatted strings appeared in the four text assets, and the Git metadata privacy check passed without printing address values.
+- The release body was replaced with the checked-in `docs/release-notes/v0.5.0.md` before publication. Anonymous access then returned HTTP 200 for the release page and HTTP 206 for a Windows installer range request.
+
+| Published release file | SHA-256 |
+| --- | --- |
+| `RELEASE_NOTES.md` | `9E2F3AACCC5445B5AF789E27D4C9CC482EF675FA32C32E361E55E2D91545C4E9` |
+| `THIRD_PARTY_NOTICES.md` | `9CFF93C6FB31E7E6EF8ED5D51EF7AB0D4B040FB37BC3ECF05156DBD151CA991C` |
+| `TamaGrid_0.5.0_aarch64.app.tar.gz` | `29AE5BD24BD81374BFD87C740919A283B835B424D159D444DB4E4DB42AE8E4A2` |
+| `TamaGrid_0.5.0_aarch64.dmg` | `341054838FEBD844518BD80A03FDDD393992C0D0D48E2083BDEAAC4FF498C208` |
+| `TamaGrid_0.5.0_x64_en-US.msi` | `1F16D82165B23B1A499C871EAF7F1E6B44F1ECDB04E235B1D861ACB7F4ECCC8A` |
+| `TamaGrid_0.5.0_x64-setup.exe` | `1F001B3F96BB05F5E123335B2392D2C519540D340D0CC5B699D065A2C257D08F` |
+| `TamaGrid_0.5.0_x64.app.tar.gz` | `222986CCAFE1617B86CD4D5AF5A2807925D3CD0BA75B3C2C36EFF57F05AA298E` |
+| `TamaGrid_0.5.0_x64.dmg` | `BF671D1A0E4001932342B8623CB350F495DD238DFC305284296E617111D0CD64` |
+| `tamagrid-js.cdx.json` | `F3673F80E803B22396767E4CF020FABF4A7F8404B79552A3FE9900A91701E90B` |
+| `SHA256SUMS.txt` | `6A8555C4FEA1238FEBFD9797D5EAC611D8E8F93B9FB595E82439026E00078BFA` |
+
 ## External actions performed
 
 - Created the empty public repository [tamas-hub/tamagrid](https://github.com/tamas-hub/tamagrid) under the intended organization, without generated starter files.
@@ -129,9 +155,14 @@ Final Intel-fallback bundle-smoke hashes:
 - The first advanced CodeQL run stopped at workflow startup because `github/codeql-action@*` did not match the nested `init` and `analyze` actions. No code executed. The broad ineffective pattern was replaced with the two exact sub-action patterns; startup-failure runs cannot be retried, so a normal follow-up commit retriggered the PR workflows.
 - Squash-merged hardened pull request #7 only after all nine final-head required checks succeeded. Direct merge commits and rebase merges were disabled; squash merge is the only enabled merge mode and merged branches are deleted automatically.
 - Protected `main` with strict status checks bound to their GitHub App IDs: CodeQL Actions, JavaScript/TypeScript and Rust analysis, the GitHub Advanced Security CodeQL summary, Dependency Review, frontend, Windows/macOS native CI, and RustSec. Pull requests, stale-review dismissal, admin enforcement, linear history, conversation resolution and signed commits are required; force pushes and deletion are disabled. A first API payload combining legacy contexts with App-bound checks was rejected with `422`; the corrected checks-only payload succeeded and the complete protection object was read back.
-- Enabled immutable releases for future releases. This does not create a tag or release; it prevents mutation after a release is published while still allowing a draft to be assembled and inspected.
+- Enabled immutable releases before the first publication. At that time this did not create a tag or release; it allowed the draft to be assembled and inspected while ensuring the later published release could not be mutated.
 - The first post-migration bundle-smoke run exposed an Intel-macOS-only `pnpm/setup` failure before project code ran. The check annotation identified upstream `pnpm/pnpm#11423`: pnpm v11's Node SEA binary is not usable on `darwin-x64`. The fallback keeps version 11.21.0, does not adopt the pnpm 12 release candidate, and does not weaken action SHA pinning.
 - Pull request #10 and a follow-up bundle-smoke run verified the targeted fallback. `pnpm/setup` remains active on Windows and Apple Silicon; only Intel macOS uses pinned `actions/setup-node` plus exact `pnpm@11.21.0` from npm with lifecycle scripts disabled.
+- The first authorized `v0.5.0` tag run failed before project code on Intel macOS because the release workflow had not yet received the validated fallback. The run was cancelled; it created no draft or assets; the exact tag was removed before correction.
+- Pull request #15 applied the same exact pnpm fallback to the release workflow. All nine protected checks passed before squash merge.
+- A second authorized tag run built all three platforms and produced a draft, but independent verification found no attestation subject for either downloadable `.app.tar.gz`. The draft was not published; it and the exact tag were removed before correction.
+- Pull request #16 re-attested the six exact downloadable package files and added in-workflow verification for all six. All nine protected checks passed before squash merge.
+- The final `v0.5.0` tag was created at `c4b9425a0e92c4ed4a13e1b295b7df9401a2f414`. After every final release check passed, draft `370284688` was published as the immutable prerelease [TamaGrid v0.5.0 Public Preview](https://github.com/tamas-hub/tamagrid/releases/tag/v0.5.0) with ten assets.
 
 Latest local release candidate directory (a sibling of the repository and not part of the public source candidate):
 
@@ -154,17 +185,17 @@ The local set also contains `RELEASE_NOTES.md`, `THIRD_PARTY_NOTICES.md`, `tamag
 6. [x] Merge the hardened pull request only after Dependency Review, Security Audit, Windows/macOS native CI and CodeQL checks succeed; then protect `main` with those exact required checks, required pull requests, required signed commits, no force-push/delete and admin enforcement.
 7. [x] Build and inspect temporary unsigned Windows x64, macOS arm64 and macOS x64 workflow artifacts from the hardened main commit.
 8. [ ] Review social preview and final rendered README. The description, topics and license detection are complete.
-9. [ ] Perform the remaining installed Windows UI smoke tests and native macOS runtime checks in `PUBLIC_RELEASE_CHECKLIST.md`.
-10. [ ] Only after explicit release authorization, push tag `v0.5.0`. The workflow must stop at a draft prerelease.
-11. [ ] Download every draft asset, validate `SHA256SUMS.txt`, verify GitHub attestations, compare the release body with the checked-in notes, and confirm unsigned/notarization warnings.
-12. [ ] Publish the draft only after a separate manual owner decision.
+9. [x] Complete the installed Windows installer/UI smoke test confirmed by the owner. Native macOS runtime checks remain open and are disclosed in the release notes.
+10. [x] After explicit release authorization, push tag `v0.5.0` and require the workflow to stop at a draft prerelease.
+11. [x] Download every draft asset, validate `SHA256SUMS.txt`, verify all GitHub attestations, compare the release body with the checked-in notes, and confirm unsigned/notarization warnings.
+12. [x] Publish the draft only after the separate owner decision and final manual gate.
 
 ## Recovery and non-actions
 
 The owner later made the separate destructive-operation decision described above. The one-time privacy rewrite preserved the complete `main` tree and nine-commit topology while replacing the exact personal address with GitHub noreply metadata. It invalidated prior commit IDs and signatures; five stale Dependabot pull requests were closed and their branches deleted. Old Actions runs, artifacts and caches were removed, then all nine App-bound checks, pull requests, admin enforcement, signed commits, linear history and conversation resolution were restored with force pushes and deletion disabled. All upstream branches now also require verified signatures; email-format enforcement remains the responsibility of the account push block, repository-local identity, tracked pre-push hook, and required CI because that metadata ruleset feature is unavailable on GitHub Free. Future source corrections return to normal pull requests rather than history rewrites.
 
-No tag, GitHub Release, release attestation, secret, certificate or signing credential was created. The unsigned local `r3` installer set remains outside the repository and was not uploaded. Existing earlier installer sets were preserved. The pre-rewrite temporary workflow artifacts were re-inspected for email leakage and then removed with their old Actions runs; they were CI evidence, not a GitHub Release.
+The final `v0.5.0` tag, ten release assets, checksum manifest, SBOM, third-party notice, release notes, and GitHub Artifact Attestations were created and published under the later explicit release authorization. No secret, certificate, signing credential, repository visibility change, transfer, or deletion was performed. The separate unsigned local `r3` candidate and existing earlier installer sets remain outside the repository and were not uploaded. The pre-rewrite temporary workflow artifacts were re-inspected for email leakage and then removed with their old Actions runs; they were CI evidence, not the published GitHub Release.
 
-Repository-setting recovery is reversible: Private Vulnerability Reporting and automated security fixes can be disabled; CodeQL default setup can return to `not-configured`; Actions can return to `allowed_actions=all`, no SHA requirement and a write-default token; secret scanning/push protection can be disabled; topics can be reset. Those weaker settings are not recommended and no rollback was performed. Source changes can be reverted through a normal pull request after merge.
+Repository-setting recovery is reversible: Private Vulnerability Reporting and automated security fixes can be disabled; CodeQL default setup can return to `not-configured`; Actions can return to `allowed_actions=all`, no SHA requirement and a write-default token; secret scanning/push protection can be disabled; topics can be reset. Those weaker settings are not recommended and no rollback was performed. Source changes can be reverted through a normal pull request after merge. The published `v0.5.0` release is immutable; any artifact or release-note correction must use a reviewed new version such as `v0.5.1` rather than altering the existing release.
 
 Preserve the source tree and review local Git configuration and generated release directories individually if later cleanup is requested. Do not use a broad clean/reset command because unrelated user files may exist nearby.
