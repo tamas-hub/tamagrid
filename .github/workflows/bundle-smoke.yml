@@ -59,9 +59,17 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - run: pnpm install --frozen-lockfile
+      - name: Exercise the packaged Tauri Channel and WebView
+        run: >-
+          pnpm test:packaged-soak --
+          --duration-ms 30000
+          --target ${{ matrix.target }}
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
       - name: Build unsigned smoke-test bundle
         run: pnpm tauri build ${{ matrix.args }}
         env:
+          VITE_TAMAGRID_SOAK: "0"
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
       - name: Retain bundle for manual inspection
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

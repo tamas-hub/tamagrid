@@ -6,6 +6,7 @@ import type {
   JsonObject,
   JsonRpcId,
 } from "./types";
+import { isPackagedSoakBuild, PackagedSoakCodexBridge } from "./packagedSoak";
 
 export type AppServerEventHandler = (event: AppServerEvent) => void;
 
@@ -708,6 +709,8 @@ export class PreviewCodexBridge implements CodexBridge {
 }
 
 export function createCodexBridge(): CodexBridge {
+  if (isTauriRuntime() && isPackagedSoakBuild())
+    return new PackagedSoakCodexBridge();
   return isTauriRuntime() ? new TauriCodexBridge() : new PreviewCodexBridge();
 }
 

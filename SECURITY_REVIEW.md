@@ -10,7 +10,7 @@
 - release workflow [31757215002](https://github.com/tamas-hub/tamagrid/actions/runs/31757215002)はquality、Windows x64、macOS arm64、macOS x64、checksums、provenance verificationの全jobが成功
 - 公開assetは10件。`SHA256SUMS.txt`の9項目を独立再計算し、10 assetすべての`gh attestation verify`、6 packageのarchive integrity、Microsoft Defender scanを通過
 - 公開後記録を反映した`main` commit `27e7476263b04569efbea8ee2db09bd5ec57419f`でCI、CodeQL、Security auditが成功し、open CodeQL / secret scanning / Dependabot alertは各0
-- Windows Authenticode署名、macOS Developer ID署名 / notarization、macOS native runtime確認、packaged Tauri/WebViewを含む長時間負荷・強制crash試験は未完了のため、Public Preview制限として継続
+- Windows Authenticode署名、macOS Developer ID署名 / notarization、macOS native runtime確認、packaged appの強制crash試験は未完了のため、Public Preview制限として継続。Windows packaged Tauri / WebViewの3分間負荷試験は2026-08-14に完了
 - 追加hardeningでは、Rustとrendererそれぞれで100,000 deltaのpayload保持とqueue上限を確認し、Windows Job Objectが実際のdescendant processを終了するruntime testを通過。Unix process-groupの同等testもnative macOS CIへ追加
 - privacy rewrite後の現行`main`はnon-noreply metadata 0件。GitHub管理の全17 PR / 20 PR commitを再測定すると、merged PR #9、#10、#11経由でnon-noreply metadataを持つ旧commit 3件が引き続き到達可能。値と旧SHAは公開せず、provider側dereference / garbage collection依頼を継続
 
@@ -18,7 +18,7 @@
 
 ## 結論
 
-初回レビューで検出したHigh 2件、Medium 4件、Low 2件はすべてsource上で修正または強く緩和しました。追加レビューでは、Codex executableの初回自動検出と更新後のidentity再確認、account responseの最小化、Rust側delta bufferのhard bound、event送信順序の競合、PR依存差分検査、RustSec監査を追加しました。100,000 deltaの自動stress testはRust / rendererの両queueで通過しました。Tauri Channel内部のqueue上限はアプリ側から直接設定できないため、packaged Tauri/WebViewを含む長時間soak testはresidual validationとして継続します。
+初回レビューで検出したHigh 2件、Medium 4件、Low 2件はすべてsource上で修正または強く緩和しました。追加レビューでは、Codex executableの初回自動検出と更新後のidentity再確認、account responseの最小化、Rust側delta bufferのhard bound、event送信順序の競合、PR依存差分検査、RustSec監査を追加しました。100,000 deltaの自動stress testはRust / rendererの両queueで通過しました。さらに、実際のWindows packaged Tauri / WebViewで3分間・9,000 delta・2,304,000 bytesをsequence gap 0、最大frame gap 50 ms、終了後の残留process 0で完走しました。
 
 主要変更は、raw RPC commandの廃止、method別Rust DTO、Codex executableのnative確認とSHA-256 pinning、危険turnのnative JIT confirmation、高権限値の非永続化、approval context表示と情報不足時のApprove無効化、account response最小化、bounded/coalesced event処理、Windows Job Object / Unix process group、active-turn interrupt、Actions SHA pin / least privilege / Dependency Review / RustSec / Artifact Attestationです。
 
@@ -28,7 +28,7 @@
 - Low open: 0（resolved: 1、strongly mitigated with residual validation: 1）
 - Informational / residual risk: 2
 
-初回推奨判断では、hardened PR CI、3-platform bundle smoke、GitHub security settings、署名なしinstallerの最終手動gateを通してからbinary releaseを判断するとしました。これらの公開gate完了後に`v0.5.0` Public Previewを公開済みです。macOS native runtimeと、packaged appでの長時間turn・多段descendant・強制crashを含むend-to-end stress testは安定版判断前の継続課題です。「脆弱性がない」ことを保証する評価ではありません。
+初回推奨判断では、hardened PR CI、3-platform bundle smoke、GitHub security settings、署名なしinstallerの最終手動gateを通してからbinary releaseを判断するとしました。これらの公開gate完了後に`v0.5.0` Public Previewを公開済みです。Windows packaged appの長時間stream試験は追加完了しました。macOS native runtimeと、強制crash・多段descendantを含むend-to-end終了試験は安定版判断前の継続課題です。「脆弱性がない」ことを保証する評価ではありません。
 
 ## Initial findings and remediation
 
@@ -149,7 +149,7 @@
 ### TG-SEC-008 — Protocol event queueにbounded backpressureがない
 
 - Severity: **Low**（availability）
-- Status: **Strongly mitigated / residual end-to-end validation** — Rust側でdeltaを20 ms単位にcoalesceし、合計1 MiB / 256 event、coalesced event 128 KiBへhard-bound。terminal / approval / error前にarrival orderでflushし、sequence割当とChannel送信を同一lockで直列化。frontendも1,024 event / 1 MiB上限、隣接deltaだけのcoalescing、hard-limit synchronous flushを持つ。Rust / rendererそれぞれの100,000 delta stress testはpayloadを失わず上限内で通過。Tauri Channel内部queueの直接設定とpackaged WebViewを含む長時間soak testは未完了。
+- Status: **Strongly mitigated / Windows packaged validation complete** — Rust側でdeltaを20 ms単位にcoalesceし、合計1 MiB / 256 event、coalesced event 128 KiBへhard-bound。terminal / approval / error前にarrival orderでflushし、sequence割当とChannel送信を同一lockで直列化。frontendも1,024 event / 1 MiB上限、隣接deltaだけのcoalescing、hard-limit synchronous flushを持つ。Rust / rendererそれぞれの100,000 delta stress testはpayloadを失わず上限内で通過。Windows packaged Tauri / WebViewは3分間・9,000 delta・2,304,000 bytesをsequence gap 0で完走。
 - Rule ID: `TAURI-AVAIL-001`
 - Location:
   - `src-tauri/src/codex/transport.rs:22-24`
@@ -157,11 +157,11 @@
   - `src-tauri/src/codex/transport.rs:353-355`
   - `src/App.tsx:173-180`
   - `src/App.tsx:232-237`
-- Remediation evidence: 対象deltaは `(method, generation, threadId, turnId, itemId)` 相当のrouting keyで隣接分だけ結合し、上限到達時は古いbatchを先にflushします。terminal eventはdropせず、delta batchを先に送ります。stdout reader、stderr reader、process monitor、periodic flushの並行送信はsequenceとdeliveryの逆転が起きないよう直列化しました。
+- Remediation evidence: 対象deltaは `(method, generation, threadId, turnId, itemId)` 相当のrouting keyで隣接分だけ結合し、上限到達時は古いbatchを先にflushします。terminal eventはdropせず、delta batchを先に送ります。stdout reader、stderr reader、process monitor、periodic flushの並行送信はsequenceとdeliveryの逆転が起きないよう直列化しました。test-only featureと隔離app identifierで実際のTauri Channel / WebView / React stateを通し、最終authoritative item、turn完了、最新行追従、frame heartbeat、process回収まで検査しました。
 - Impact: 大量command outputや高速deltaによりrenderer memory/CPUが増え、UI freezeまたはcrashが起こり得ます。
 - Recommended fix: Rust側にbounded channelを置き、deltaを `(generation, threadId, turnId, itemId)` 単位でcoalesceします。terminal/approval/error eventはdropしないpriority queueとし、line limitも実測に基づいて引き下げを検討します。
 - Mitigation already present: protocol / diagnostic frame length limit、Rust-side bounded delta batching、frontend frame batchingとhard limit、state event/detail truncation。
-- Confidence: Medium。両queueの100,000 delta stress testは通過しましたが、Tauri Channel / WebViewを含むend-to-end長時間試験は未実施です。
+- Confidence: Medium-High on Windows。両queueの100,000 delta stress testと3分間のpackaged Channel / WebView試験は通過しました。native macOSと強制crash時の同等試験は未実施です。
 
 ## Informational / residual risks
 
@@ -233,13 +233,14 @@
 - Final bundle smoke: Intel fallbackを含むWindows x64 / macOS arm64 / macOS x64 **all success**。3 artifact / 22 files / zero-length 0、architecture・bundle metadata・version・hash確認、Defender **no threats found**、Windows `NotSigned`を再確認。privacy rewrite後、旧SHA参照を断つためpre-rewrite Actions run / artifact / cacheは削除済みです。
 - Dependabot alert #1 (`GHSA-wrw7-89jp-8q8g`): locked target graphでWindows/macOS 3 targetから`glib 0.18.5`到達不能、unsupported Linuxのみ到達可能を確認し、理由付き`not_used`分類。open CodeQL / secret / Dependabot alertは各0。
 - Final `v0.5.0` release: 10 asset / zero-length 0、SHA-256 manifest 9/9、Artifact Attestation 10/10、archive integrity 6/6、Microsoft Defender **no threats found**、anonymous release page / Windows installer access **HTTP 200 / 206**。公開後のreleaseは`draft=false`、`prerelease=true`、`immutable=true`。
+- Local `v0.6.0` candidate packaged soak: Windowsで3分間・9,000 delta・2,304,000 bytes、sequence gap 0、最大frame gap 50 ms、最新行距離0 px、正常終了後のTamaGrid / direct WebView child残留0、test temporary directory残留0。Codex process・account・利用枠には接続していません。
 
 ## 限界
 
 - sourceとlocal buildを対象としたstatic / dependency reviewです。第三者penetration testや形式検証ではありません。
 - 実際の悪意あるWebView payload、Codex prompt injection、sandbox escapeは実行していません。
 - descendant process終了はWindows Job Objectの実process treeで再現し、Unix同等testをnative macOS CIへ追加しました。ただし多段・長時間の実Codex commandを使うpackaged app試験の代替ではありません。
-- event floodはRust / renderer両queueで100,000 deltaを再現しました。ただしTauri Channel / WebViewを含む長時間負荷試験の代替ではありません。
-- release executableの基本起動・終了smoke testは通過しましたが、長時間turnや強制crashを含むstress testの代替ではありません。
+- event floodはRust / renderer両queueで100,000 delta、Windows packaged Tauri / WebViewで3分間のstreamを再現しました。native macOSでの同等試験は未実施です。
+- release executableの基本起動・終了smoke testと隔離packaged testの正常終了は通過しましたが、強制crash時のprocess-tree回収試験の代替ではありません。
 - OSV/RustSec照合は監査時点の公開databaseに依存し、未知脆弱性を否定するものではありません。
 - OS WebView2、Codex CLI、OpenAI serviceそのものの脆弱性は対象外です。

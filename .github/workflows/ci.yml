@@ -68,4 +68,5 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: pnpm tauri build --no-bundle
         env:
+          VITE_TAMAGRID_SOAK: "0"
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}

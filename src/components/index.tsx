@@ -393,6 +393,7 @@ export function AgentPane({
   return (
     <section
       className={`agent-pane ${selected ? "selected" : ""} ${disabled ? "disabled" : ""} ${dragging ? "dragging" : ""} ${dragOver ? "drag-over" : ""}`}
+      data-pane-id={pane.id}
       onClick={onSelect}
       onDragOver={(event) => {
         if (!onDrop) return;

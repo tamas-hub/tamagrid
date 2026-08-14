@@ -202,3 +202,18 @@ The final `v0.5.0` tag, ten release assets, checksum manifest, SBOM, third-party
 Repository-setting recovery is reversible: Private Vulnerability Reporting and automated security fixes can be disabled; CodeQL default setup can return to `not-configured`; Actions can return to `allowed_actions=all`, no SHA requirement and a write-default token; secret scanning/push protection can be disabled; topics can be reset; the social-preview image can be replaced or removed from General settings. Those weaker security settings are not recommended and no rollback was performed. Source changes can be reverted through a normal pull request after merge. The published `v0.5.0` release is immutable; any artifact or release-note correction must use a reviewed new version such as `v0.5.1` rather than altering the existing release.
 
 Preserve the source tree and review local Git configuration and generated release directories individually if later cleanup is requested. Do not use a broad clean/reset command because unrelated user files may exist nearby.
+
+## v0.6.0 local candidate hardening (2026-08-14)
+
+The next local candidate adds a feature-gated, isolated packaged Tauri / WebView soak harness. It uses a different app identifier, does not launch Codex, and does not read an account, conversation, credential, or usage limit. A three-minute Windows run delivered 9,000 delta events / 2,304,000 bytes with zero sequence gaps, maximum animation-frame gap 50 ms, latest-row distance 0 px, and no TamaGrid, direct WebView child, or test temporary directory left after normal exit.
+
+The production candidate was then rebuilt with the frontend soak flag explicitly disabled and without the non-default Rust test feature. The production `dist` and executable contain none of the test command or completion markers. Frontend lint / 46 tests / typecheck / production build, App Server schema compatibility against Codex CLI 0.147.0, production npm audit, Git metadata email check, normal Rust fmt / clippy / 14 tests, feature-enabled clippy / 15 tests, and RustSec's unsound / yanked gate all passed.
+
+The separate local set is `../TamaGrid-v0.6.0-public-preview-candidate`. It contains two unsigned Windows packages, release notes, third-party notices, the production JavaScript CycloneDX SBOM, and a six-file checksum manifest. The manifest was independently read back and matched every covered file. The MSI opened read-only as `TamaGrid` version `0.6.0`, and Microsoft Defender custom scanning with remediation disabled reported no threats.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `TamaGrid_0.6.0_x64-setup.exe` | `AA007757C5F892CF308192B24BED173346DFD732F47FDF5D029D530B25EC0B44` |
+| `TamaGrid_0.6.0_x64_en-US.msi` | `0ABE0E6472504DDBDAB83E9398C19CD78434DE93E3ED27FF8FA9AF9B147B9184` |
+
+These v0.6.0 changes and artifacts remain local and uncommitted at this checkpoint. No branch, pull request, workflow dispatch, tag, draft release, release asset, repository setting, visibility, permission, or public text was changed. Native macOS UI / runtime checks, the updated three-platform Bundle smoke, and forced-crash packaged process-tree recovery remain open before a later publication decision.
