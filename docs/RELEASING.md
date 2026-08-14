@@ -57,7 +57,7 @@ git tag v0.5.0
 git push origin v0.5.0
 ```
 
-tag pushで `.github/workflows/release.yml` が、tag commitが`main`に含まれること、tag・package・Tauri・Cargoのversion一致、release notesの存在、frontend / Rust test、JavaScript / Rust dependency auditを先に検証します。その後Windows NSIS / MSI、macOS app / dmg、tagと同名の `RELEASE_NOTES.md`、`THIRD_PARTY_NOTICES.md`、production JavaScript dependencyのCycloneDX SBOM、`SHA256SUMS.txt` をdraft prereleaseへ追加し、native artifact・release metadata・checksum manifestのGitHub Artifact Attestationを生成します。tagの作成とpushはrepository ownerの明示的な公開判断後に行ってください。
+tag pushで `.github/workflows/release.yml` が、tag commitが`main`に含まれること、tag・package・Tauri・Cargoのversion一致、release notesの存在、frontend / Rust test、JavaScript / Rust dependency auditを先に検証します。その後Windows NSIS / MSI、macOS app / dmg、tagと同名の `RELEASE_NOTES.md`、`THIRD_PARTY_NOTICES.md`、production JavaScript dependencyのCycloneDX SBOM、`SHA256SUMS.txt` をdraft prereleaseへ追加します。checksums jobはドラフトからダウンロード可能な6パッケージを読み戻し、その実ファイルすべて（macOSの `.app.tar.gz` を含む）にGitHub Artifact Attestationを生成し、workflow内で全件の `gh attestation verify` を完了させてからrelease metadataを追加します。tagの作成とpushはrepository ownerの明示的な公開判断後に行ってください。
 
 ## Manual release gate
 

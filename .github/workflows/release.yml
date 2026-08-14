@@ -186,6 +186,33 @@ jobs:
             | xargs -0 sha256sum \
             | sed 's#  \./#  #' > SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
+      # Tauri's macOS upload wraps each .app bundle in a .app.tar.gz file after
+      # the platform build job has selected its attestation subjects. Attest
+      # the exact downloadable package files here so every Release asset, not
+      # only the DMGs and Windows installers, has verifiable provenance.
+      - name: Attest downloadable release packages
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: release-artifacts/TamaGrid_*
+      - name: Verify every downloadable package attestation
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mapfile -d '' artifacts < <(
+            find release-artifacts -maxdepth 1 -type f -name 'TamaGrid_*' -print0 | sort -z
+          )
+          test "${#artifacts[@]}" -eq 6
+          for artifact in "${artifacts[@]}"; do
+            verified=false
+            for attempt in 1 2 3; do
+              if gh attestation verify "$artifact" --repo "$GITHUB_REPOSITORY"; then
+                verified=true
+                break
+              fi
+              sleep 5
+            done
+            test "$verified" = true
+          done
       - name: Attest checksum manifest
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
