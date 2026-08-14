@@ -1146,13 +1146,13 @@ mod tests {
 
         let mut output = BufReader::new(parent.stdout.take().unwrap());
         let mut line = String::new();
-        // Fresh GitHub-hosted Windows runners can spend several seconds
+        // Fresh GitHub-hosted Windows runners can spend tens of seconds
         // starting Windows PowerShell under Defender load. This timeout only
         // covers fixture startup; the post-termination deadline stays strict.
-        timeout(Duration::from_secs(20), output.read_line(&mut line))
+        timeout(Duration::from_secs(60), output.read_line(&mut line))
             .await
-            .unwrap()
-            .unwrap();
+            .expect("PowerShell fixture did not report its descendant PID within 60 seconds")
+            .expect("failed to read descendant PID from PowerShell fixture");
         let descendant_id: u32 = line.trim().parse().unwrap();
         assert!(is_running(descendant_id));
 
