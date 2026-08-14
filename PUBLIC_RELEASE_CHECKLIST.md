@@ -80,6 +80,21 @@ This checklist separates completed source/repository work, published Public Prev
 - Publication: anonymous release-page access returned HTTP 200 and anonymous Windows installer retrieval returned HTTP 206; GitHub reports `draft=false`, `prerelease=true`, `immutable=true`, and ten assets
 - Repository presentation: GitHub serves the reviewed custom social-preview image through the public repository `og:image`
 
+## Published `v0.6.0` evidence
+
+- Release: <https://github.com/tamas-hub/tamagrid/releases/tag/v0.6.0> (`TamaGrid v0.6.0 Public Preview`)
+- Tag commit: `7d021df3efca9c56b8440e1b2183c8eadd5a3b8c`, contained in protected `main`
+- Final release-record pull request: [#24](https://github.com/tamas-hub/tamagrid/pull/24); all nine required checks passed before its GitHub-verified squash merge
+- Release workflow: <https://github.com/tamas-hub/tamagrid/actions/runs/31806120272>; quality, Windows x64, macOS arm64, macOS x64, checksums, and provenance verification succeeded
+- Assets: ten exact nonempty files; `SHA256SUMS.txt` covers the other nine files and all nine values were independently reproduced. GitHub API digests independently matched all ten files
+- Provenance: `gh attestation verify` succeeded independently for all ten files, including both downloadable `.app.tar.gz` archives
+- Package integrity: MSI metadata reported `TamaGrid` version `0.6.0`; both app archives had safe paths and the expected Mach-O architecture; both DMGs had valid UDIF trailers; Windows packages remained intentionally `NotSigned`
+- Malware scan: Microsoft Defender engine `1.1.26070.7` with definition `1.457.159.0` reported no threats in the downloaded release tree with remediation disabled
+- Privacy: the four text assets contained no email-formatted string, private user path, or credential-shaped value; the tagged Git metadata privacy check passed
+- Publication: anonymous HTTP requests returned 200 for the release page, NSIS, MSI, Apple Silicon DMG, and Intel DMG. GitHub reports release ID `370611832`, `draft=false`, `prerelease=true`, `immutable=true`, and ten unchanged assets
+- Repository state after publication: public, default branch `main`, zero open pull requests, zero open CodeQL/secret-scanning/Dependabot alerts, and the same strict nine-check protection with signed commits, admin enforcement, no force pushes, and no branch deletion
+- Manual limitation: the repository owner reported native macOS Pass, but exact package hash, device/OS metadata, and per-check evidence were not supplied. Forced-crash packaged process-tree recovery also remains unverified
+
 ## Accepted public-preview limitations
 
 - Windows artifacts are not Authenticode-signed.
