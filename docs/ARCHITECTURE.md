@@ -87,6 +87,8 @@ Codex App Serverはversionごとにschemaが更新される可能性がありま
 
 実装時の検証snapshotはCodex CLI 0.147.0の `codex app-server generate-json-schema` で作成しましたが、runtimeを0.147.0へ固定していません。
 
+Codex更新後は `pnpm check:app-server-schema` を実行すると、shellを介さずCodex executableから一時schemaを生成し、TamaGridが使用するstable method、approval request、notification、wire enumとの互換性を確認できます。一時schemaは検査後に削除され、credentialやaccount dataは読みません。自動検出できない環境では `TAMAGRID_CODEX_EXECUTABLE` または `--codex <path>` でexecutableを明示します。Windowsではnative `.exe` だけを候補にします。
+
 ## Persistence
 
 localStorageに保存するもの:

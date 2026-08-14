@@ -32,6 +32,13 @@ import {
   type JsonRpcMessage,
 } from "./codex";
 import {
+  MAX_PROTOCOL_QUEUE_DELTA_BYTES,
+  protocolDeltaBytes,
+  protocolDeltaWouldOverflow,
+  protocolEventCountWouldOverflow,
+  tryCoalesceAdjacentProtocolDelta,
+} from "./codex/protocolQueue";
+import {
   applyProtocolMessage,
   eventsFromThreadRead,
   FONT_SCALE_MAX,
@@ -66,14 +73,6 @@ const PULL_REQUEST_PREP_PROMPT: Record<AppLanguage, string> = {
   ja: "Pull Requestの準備をしてください。現在のGit branch、working tree、staged・unstaged・untrackedの差分を確認し、必要なテストを実行または提案したうえで、PRタイトルと本文の案を作成してください。commit、push、remote branch作成、gh pr createなど外部状態を変更する操作はまだ実行せず、準備結果を提示して私の明示的な確認を待ってください。",
   en: "Prepare a Pull Request draft. Inspect the current Git branch and all staged, unstaged, and untracked changes. Run or recommend the necessary tests, then draft a PR title and body. Do not commit, push, create a remote branch, run gh pr create, or make any other external change yet. Present the preparation results and wait for my explicit confirmation.",
 };
-const MAX_PROTOCOL_QUEUE = 1_024;
-const COALESCIBLE_DELTA_METHODS = new Set([
-  "item/agentMessage/delta",
-  "item/plan/delta",
-  "item/reasoning/summaryTextDelta",
-  "item/commandExecution/outputDelta",
-]);
-
 function App() {
   const adapterRef = useRef(new CodexAdapter(createCodexBridge()));
   const [panes, setPanes] = useState<PaneRuntimeState[]>(() =>
@@ -129,6 +128,7 @@ function App() {
   const minimumGenerationRef = useRef(1);
   const lastSequenceRef = useRef(0);
   const protocolQueueRef = useRef<AppServerEvent[]>([]);
+  const protocolQueueDeltaBytesRef = useRef(0);
   const flushFrameRef = useRef<number | undefined>(undefined);
   const orphanMessagesRef = useRef(new Map<string, JsonRpcMessage[]>());
   const intentionalDisconnectRef = useRef(false);
@@ -180,6 +180,7 @@ function App() {
     const queued = protocolQueueRef.current
       .splice(0)
       .sort((left, right) => left.sequence - right.sequence);
+    protocolQueueDeltaBytesRef.current = 0;
     if (queued.length === 0) return;
 
     for (const event of queued) {
@@ -235,12 +236,37 @@ function App() {
       lastSequenceRef.current = event.sequence;
 
       if (event.eventType === "message" && event.message) {
-        if (!coalesceProtocolDelta(protocolQueueRef.current, event)) {
-          if (protocolQueueRef.current.length >= MAX_PROTOCOL_QUEUE) {
-            if (flushFrameRef.current !== undefined) {
-              window.cancelAnimationFrame(flushFrameRef.current);
-              flushFrameRef.current = undefined;
-            }
+        const incomingDeltaBytes = protocolDeltaBytes(event);
+        const cancelScheduledFlush = () => {
+          if (flushFrameRef.current !== undefined) {
+            window.cancelAnimationFrame(flushFrameRef.current);
+            flushFrameRef.current = undefined;
+          }
+        };
+        if (incomingDeltaBytes > MAX_PROTOCOL_QUEUE_DELTA_BYTES) {
+          cancelScheduledFlush();
+          flushProtocolQueue();
+          protocolQueueRef.current.push(event);
+          protocolQueueDeltaBytesRef.current = incomingDeltaBytes;
+          flushProtocolQueue();
+          return;
+        }
+        if (
+          protocolDeltaWouldOverflow(
+            protocolQueueDeltaBytesRef.current,
+            incomingDeltaBytes,
+          )
+        ) {
+          cancelScheduledFlush();
+          flushProtocolQueue();
+        }
+        if (
+          !tryCoalesceAdjacentProtocolDelta(protocolQueueRef.current, event)
+        ) {
+          if (
+            protocolEventCountWouldOverflow(protocolQueueRef.current.length)
+          ) {
+            cancelScheduledFlush();
             // Flush synchronously at the hard limit. Terminal and approval
             // events are never discarded, while adjacent deltas are normally
             // coalesced before reaching this path.
@@ -248,6 +274,7 @@ function App() {
           }
           protocolQueueRef.current.push(event);
         }
+        protocolQueueDeltaBytesRef.current += incomingDeltaBytes;
         if (flushFrameRef.current === undefined) {
           flushFrameRef.current =
             window.requestAnimationFrame(flushProtocolQueue);
@@ -1364,52 +1391,6 @@ function errorMessage(error: unknown): string {
   } catch {
     return "Unknown error";
   }
-}
-
-function coalesceProtocolDelta(
-  queue: AppServerEvent[],
-  incoming: AppServerEvent,
-): boolean {
-  const incomingMessage = incoming.message as JsonRpcMessage | undefined;
-  const method = incomingMessage?.method;
-  const params = isJsonObject(incomingMessage?.params)
-    ? incomingMessage.params
-    : undefined;
-  if (
-    !method ||
-    !params ||
-    !COALESCIBLE_DELTA_METHODS.has(method) ||
-    typeof params.delta !== "string"
-  )
-    return false;
-
-  for (let index = queue.length - 1; index >= 0; index -= 1) {
-    const queuedMessage = queue[index].message as JsonRpcMessage | undefined;
-    if (queuedMessage?.method !== method) continue;
-    const queuedParams = isJsonObject(queuedMessage.params)
-      ? queuedMessage.params
-      : undefined;
-    if (
-      !queuedParams ||
-      queuedParams.threadId !== params.threadId ||
-      queuedParams.turnId !== params.turnId ||
-      queuedParams.itemId !== params.itemId ||
-      typeof queuedParams.delta !== "string"
-    )
-      continue;
-    queue[index] = {
-      ...queue[index],
-      message: {
-        ...queuedMessage,
-        params: {
-          ...queuedParams,
-          delta: `${queuedParams.delta}${params.delta}`,
-        },
-      },
-    };
-    return true;
-  }
-  return false;
 }
 
 export default App;
