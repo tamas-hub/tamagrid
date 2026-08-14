@@ -2,7 +2,7 @@
 
 Updated: 2026-08-14
 
-This checklist separates completed source/repository work, the published Public Preview, and the remaining platform validation. The public source repository and immutable `v0.5.0` prerelease are available on GitHub.
+This checklist separates completed source/repository work, published Public Preview releases, and remaining validation evidence. The public source repository and immutable releases are available on GitHub.
 
 ## Ready locally
 
@@ -59,7 +59,7 @@ This checklist separates completed source/repository work, the published Public 
 - [x] Review repository description, topics, MIT license detection, and final public README rendering
 - [x] Add and review a custom 1280×640 repository social-preview image
 - [x] Perform manual Windows installer and UI smoke tests on an installed build
-- [ ] Perform native macOS launch, history-resume, picker, approval, and shutdown checks using [`docs/MACOS_MANUAL_TEST.md`](docs/MACOS_MANUAL_TEST.md) (both native architecture builds already pass)
+- [x] Record the repository owner's native macOS result as Pass in [`docs/MACOS_MANUAL_TEST.md`](docs/MACOS_MANUAL_TEST.md). Exact package hash, device/OS metadata, and per-check evidence were not supplied and remain disclosed
 - [x] Run and inspect the updated three-platform Bundle smoke from the `v0.6.0` candidate; Windows x64, macOS arm64, and macOS x64 all passed the 30-second packaged Tauri / WebView Channel gate in [run 31777776881](https://github.com/tamas-hub/tamagrid/actions/runs/31777776881)
 - [x] Rebuild exact merged `main` commit `4d2706b4a0a9d261f9b459805c08c2875d1650c3` and complete Windows clean-install, published `v0.5.0` upgrade, launch, settings/history preservation, uninstall, reinstall, and final shutdown checks before tagging `v0.6.0`
 - [x] Push `v0.5.0` from protected `main` only after explicit owner authorization
@@ -86,7 +86,7 @@ This checklist separates completed source/repository work, the published Public 
 - macOS artifacts are not Developer ID signed or notarized.
 - GitHub Artifact Attestation proves workflow provenance but does not replace platform code signing.
 - Repository-level immutable releases prevent modification after publication, but do not establish publisher identity or replace platform code signing.
-- High-frequency deltas are bounded/coalesced before the Tauri Channel and again in the renderer. Both queue layers preserve the full payload under a 100,000-delta automated stress test. A three-minute Windows packaged Tauri / WebView test also completed without loss or residual processes. The updated 30-second three-platform workflow passed on Windows x64, macOS arm64, and macOS x64; native macOS manual validation remains open.
+- High-frequency deltas are bounded/coalesced before the Tauri Channel and again in the renderer. Both queue layers preserve the full payload under a 100,000-delta automated stress test. A three-minute Windows packaged Tauri / WebView test also completed without loss or residual processes. The updated 30-second three-platform workflow passed on Windows x64, macOS arm64, and macOS x64. The repository owner reported a native macOS Pass; exact package/device/OS and per-check evidence were not captured, and forced-crash recovery remains unverified.
 - Tauri currently brings five `unic-*` unmaintained advisories through `tauri-utils -> urlpattern`; no severity-bearing exploit advisory was identified in the Windows/macOS target-aware scan.
 - Cargo.lock includes Tauri's Linux-only GTK `glib 0.18.5`; its unsoundness advisory is unreachable on all supported release targets and is classified `not_used`, but must be reassessed if Linux becomes supported.
 - The owner-authorized privacy rewrite replaced personal author/committer metadata across all nine historical `main` commits with GitHub noreply metadata while preserving the source tree and commit topology. Rewritten historical signatures are no longer valid, but required signed commits is restored for future `main` changes. GitHub email privacy, exposed-email push blocking, and the required CI metadata check prevent recurrence. Provider-managed pull-request/cache dereferencing remains tracked in [the privacy rewrite record](docs/PRIVACY_HISTORY_REWRITE_RECORD.md).

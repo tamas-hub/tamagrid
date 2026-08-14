@@ -24,6 +24,8 @@ The owner later confirmed the rebuilt Windows installer and explicitly instructe
 
 The owner then requested that the next public-project priorities be completed in a batch. Within the previously identified release backlog, this authorized uploading the reviewed custom social-preview image and publishing the runtime-hardening changes through the protected pull-request workflow. It did not authorize a new release/tag, a GitHub Support message, permission changes, secrets, or paid services.
 
+On 2026-08-14, the owner reported that the native macOS check showed no problem and then explicitly instructed the `v0.6.0` release to proceed. This authorized updating the public validation record without inventing missing device metadata, tagging the exact reviewed protected `main`, creating and independently validating the draft prerelease, and publishing it only after the documented artifact gate succeeds. It does not authorize repository transfer/deletion, visibility or protection changes, secrets, paid signing credentials, or organization-wide settings.
+
 Before that later release authorization, the following actions were outside scope:
 
 - pushing tags, including `v0.5.0`
@@ -188,7 +190,7 @@ The local set also contains `RELEASE_NOTES.md`, `THIRD_PARTY_NOTICES.md`, `tamag
 6. [x] Merge the hardened pull request only after Dependency Review, Security Audit, Windows/macOS native CI and CodeQL checks succeed; then protect `main` with those exact required checks, required pull requests, required signed commits, no force-push/delete and admin enforcement.
 7. [x] Build and inspect temporary unsigned Windows x64, macOS arm64 and macOS x64 workflow artifacts from the hardened main commit.
 8. [x] Review the custom 1280×640 social preview and final rendered README. The description, topics and license detection are complete.
-9. [x] Complete the installed Windows installer/UI smoke test confirmed by the owner. Native macOS runtime checks remain open and are disclosed in the release notes.
+9. [x] Complete the installed Windows installer/UI smoke test and record the owner's native macOS Pass report. Missing macOS package/device/OS and per-check evidence remains disclosed in the release notes.
 10. [x] After explicit release authorization, push tag `v0.5.0` and require the workflow to stop at a draft prerelease.
 11. [x] Download every draft asset, validate `SHA256SUMS.txt`, verify all GitHub attestations, compare the release body with the checked-in notes, and confirm unsigned/notarization warnings.
 12. [x] Publish the draft only after the separate owner decision and final manual gate.
@@ -233,4 +235,4 @@ Before changing the installed application, the three live TamaGrid settings dire
 
 The Windows smoke sequence then succeeded end to end: uninstall the existing per-user installation; silently install verified `v0.5.0`; launch it and confirm the in-app `0.5.0` version; upgrade in place with the exact merged-main `v0.6.0` NSIS package; launch and confirm the in-app `0.6.0` version; verify Japanese, Dark theme, 190% text size, four-pane layout, existing titles/history, Codex connection, and idle status were preserved; uninstall `v0.6.0`; verify its registry entry, install directory, and application process were gone; reinstall the same merged-main `v0.6.0`; relaunch, repeat the version/state checks, and close normally. The machine was left with TamaGrid `0.6.0` installed and no TamaGrid process running. Every observed `codex app-server` process after shutdown had a live non-TamaGrid parent and was left untouched.
 
-No `v0.6.0` tag, draft release, release asset, repository setting, visibility, permission, secret, signing credential, or platform-security bypass was created or changed during this gate. The local settings backup and ignored installer candidates remain available for recovery. Native macOS manual validation remains the final platform gate, and tagging or publishing `v0.6.0` remains intentionally unperformed pending that result and a final owner decision.
+No `v0.6.0` tag, draft release, release asset, repository setting, visibility, permission, secret, signing credential, or platform-security bypass was created or changed during the Windows gate. The local settings backup and ignored installer candidates remain available for recovery. The repository owner subsequently reported a native macOS Pass and explicitly authorized the `v0.6.0` release to proceed. Exact macOS package hash, device/OS metadata, and per-check evidence were not supplied; those limits and forced-crash recovery remain disclosed rather than inferred.

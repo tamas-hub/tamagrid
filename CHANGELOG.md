@@ -34,7 +34,8 @@ TamaGridの利用者に影響する変更をこのファイルへ記録します
 
 - Windows Authenticode署名なし
 - macOS Developer ID署名 / notarizationなし
-- macOS native UI / runtimeと強制crash時のpackaged process-tree回収は未確認
+- macOS実機の基本動作はrepository ownerがPass報告。package hash、機種、OS version、項目別結果は未記録
+- 強制crash時のpackaged process-tree回収は未確認
 
 ## [0.5.0] - 2026-08-13
 
