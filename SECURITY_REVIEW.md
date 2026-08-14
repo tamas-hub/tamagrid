@@ -3,6 +3,18 @@
 実施日: 2026-08-13
 対象: React 19 / TypeScript / Vite / Tauri 2 / Rust / Codex App Server stdio / GitHub Actions release
 
+## 公開後ステータス更新（2026-08-14）
+
+このレビューはbinary release公開前に実施しました。その後、保護された`main`に含まれるcommit `c4b9425a0e92c4ed4a13e1b295b7df9401a2f414`から`v0.5.0`をbuildし、[immutable Public Preview prerelease](https://github.com/tamas-hub/tamagrid/releases/tag/v0.5.0)として公開しました。
+
+- release workflow [31757215002](https://github.com/tamas-hub/tamagrid/actions/runs/31757215002)はquality、Windows x64、macOS arm64、macOS x64、checksums、provenance verificationの全jobが成功
+- 公開assetは10件。`SHA256SUMS.txt`の9項目を独立再計算し、10 assetすべての`gh attestation verify`、6 packageのarchive integrity、Microsoft Defender scanを通過
+- 公開後記録を反映した`main` commit `27e7476263b04569efbea8ee2db09bd5ec57419f`でCI、CodeQL、Security auditが成功し、open CodeQL / secret scanning / Dependabot alertは各0
+- Windows Authenticode署名、macOS Developer ID署名 / notarization、macOS native runtime確認、process-tree / event-flood stress testは未完了のため、Public Preview制限として継続
+- privacy rewrite後の現行`main`はnon-noreply metadata 0件。GitHub管理の全17 PR / 20 PR commitを再測定すると、merged PR #9、#10、#11経由でnon-noreply metadataを持つ旧commit 3件が引き続き到達可能。値と旧SHAは公開せず、provider側dereference / garbage collection依頼を継続
+
+以下の公開前判断と検証値は監査時点の履歴として保持します。「binary release未作成」「tag付きattestation未実行」という記述より、この公開後ステータス更新を現在値として優先してください。
+
 ## 結論
 
 初回レビューで検出したHigh 2件、Medium 4件、Low 2件はすべてsource上で修正または強く緩和しました。追加レビューでは、Codex executableの初回自動検出と更新後のidentity再確認、account responseの最小化、Rust側delta bufferのhard bound、event送信順序の競合、PR依存差分検査、RustSec監査を追加しました。Tauri Channel内部のqueue上限はアプリ側から直接設定できないため、event-flood stress testはresidual validationとして継続します。
@@ -15,7 +27,7 @@
 - Low open: 0（resolved: 1、strongly mitigated with residual validation: 1）
 - Informational / residual risk: 2
 
-推奨判断: source公開は継続可能です。binary releaseはまだ作成せず、今回追加したhardened PR CI、3-platform bundle smoke、GitHub security settings、macOS runtime、process-tree / event-flood stress test、署名なしinstallerの最終手動gateを通してから判断します。「脆弱性がない」ことを保証する評価ではありません。
+初回推奨判断では、hardened PR CI、3-platform bundle smoke、GitHub security settings、署名なしinstallerの最終手動gateを通してからbinary releaseを判断するとしました。これらの公開gate完了後に`v0.5.0` Public Previewを公開済みです。macOS runtimeとprocess-tree / event-flood stress testは安定版判断前の継続課題です。「脆弱性がない」ことを保証する評価ではありません。
 
 ## Initial findings and remediation
 
@@ -164,7 +176,7 @@
 ### TG-SEC-010 — Windows installerはAuthenticode未署名
 
 - Severity: **Informational / distribution trust risk**
-- Status: **Accepted for Public Preview / strongly mitigated** — unsigned表示、checksum、GitHub Artifact Attestationをrelease workflowへ追加し、repository-level immutable releasesを有効化。これらはAuthenticode署名の代替ではなく、tagを伴う実際のattestation生成は未実行。
+- Status: **Accepted for Public Preview / strongly mitigated** — unsigned表示、checksum、GitHub Artifact Attestation、repository-level immutable releasesを有効化。最終tag releaseで10 assetすべてのattestationを生成・検証済み。これらはAuthenticode署名の代替ではありません。
 - Rule ID: `RELEASE-SIGN-001`
 - Evidence: NSISとMSIの `Get-AuthenticodeSignature` はともに `NotSigned`。SHA-256は同梱 `SHA256SUMS.txt` と一致しました。release notesとREADMEにも未署名が明記されています。
 - Impact: GitHub account/release自体が侵害された場合、同じ場所に置かれたinstallerとchecksumを同時に差し替えられるため、checksumだけではpublisher identityを証明できません。SmartScreen警告も残ります。
@@ -174,8 +186,8 @@
 
 - Severity: **Informational / privacy and provenance**
 - Status: **Remediated on active refs / provider purge pending** — ownerの明示許可に基づき、GitHub公式手順と`git-filter-repo` 2.47.0で公開`main`のauthor / committer metadataをGitHub noreplyへ置換しました。source treeと9 commitのtopologyは不変です。GitHub email privacyと個人emailを含むcommand-line push拒否を有効化し、tracked pre-push hookとrequired `frontend` CIへ全ref / annotated tagのnoreply検査を追加しました。
-- Evidence: 書換え直後のpublic `main` 9 commit、local object database 9 commit、repository-local Git identityはいずれもnon-noreply field 0件。public profile emailは非表示、fork 0、remote headは`main`だけ、tag / Releaseは0です。旧履歴を指したDependabot PR 5件とbranch、Actions run 58件、artifact 8件、cache 17件を削除しました。GitHub Freeで実効しないmetadata rulesetは負試験後に撤回し、no-bypass・全branchのverified-signature rulesetへ置換しました。個人address値は報告やCI logへ再掲していません。
-- Residual risk: metadata変更により過去9 commitのGitHub署名は無効化されました。`main`のrequired signed commitsと他の保護は復元済みで、今後のcommitへ適用されます。GitHub Freeではemail metadata rulesetを強制できず、tracked hookはcloneごとの有効化が必要です。最終監査ではGitHubが管理する12 PR refsのうち11 PRが旧metadataへ到達し、旧15 commit中13件がAPI参照可能でした。repository操作だけでは消せないため、provider側のdereference / garbage collection / privacy対応が必要です。第三者cloneは存在を確認できず、公開前後のcloneを技術的に回収することはできません。
+- Evidence: 書換え直後のpublic `main` 9 commit、local object database 9 commit、repository-local Git identityはいずれもnon-noreply field 0件。public profile emailは非表示、fork 0、当時のremote headは`main`だけでした。旧履歴を指したDependabot PR 5件とbranch、Actions run 58件、artifact 8件、cache 17件を削除しました。GitHub Freeで実効しないmetadata rulesetは負試験後に撤回し、no-bypass・全branchのverified-signature rulesetへ置換しました。個人address値は報告やCI logへ再掲していません。2026-08-14の再測定でも現行`main`のnon-noreply fieldは0件です。
+- Residual risk: metadata変更により書換え対象commitのGitHub署名は無効化されました。`main`のrequired signed commitsと他の保護は復元済みで、今後のcommitへ適用されます。GitHub Freeではemail metadata rulesetを強制できず、tracked hookはcloneごとの有効化が必要です。現在もGitHub管理のmerged PR #9、#10、#11から旧commit 3件がAPI参照可能です。repository操作だけでは消せないため、provider側のdereference / garbage collection / privacy対応が必要です。第三者cloneは存在を確認できず、公開前後のcloneを技術的に回収することはできません。
 
 ## 確認できた良い点
 
@@ -219,6 +231,7 @@
 - GitHub supply-chain PR #9 / Intel fallback PR #10: 各9 required checks **all success**。GitHub-signed source commitsからsquash mergeされ、review済みtreeと一致していました。
 - Final bundle smoke: Intel fallbackを含むWindows x64 / macOS arm64 / macOS x64 **all success**。3 artifact / 22 files / zero-length 0、architecture・bundle metadata・version・hash確認、Defender **no threats found**、Windows `NotSigned`を再確認。privacy rewrite後、旧SHA参照を断つためpre-rewrite Actions run / artifact / cacheは削除済みです。
 - Dependabot alert #1 (`GHSA-wrw7-89jp-8q8g`): locked target graphでWindows/macOS 3 targetから`glib 0.18.5`到達不能、unsupported Linuxのみ到達可能を確認し、理由付き`not_used`分類。open CodeQL / secret / Dependabot alertは各0。
+- Final `v0.5.0` release: 10 asset / zero-length 0、SHA-256 manifest 9/9、Artifact Attestation 10/10、archive integrity 6/6、Microsoft Defender **no threats found**、anonymous release page / Windows installer access **HTTP 200 / 206**。公開後のreleaseは`draft=false`、`prerelease=true`、`immutable=true`。
 
 ## 限界
 
