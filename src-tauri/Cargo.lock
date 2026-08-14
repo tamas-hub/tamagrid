@@ -3039,7 +3039,7 @@ dependencies = [
 
 [[package]]
 name = "tamagrid"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "libc",

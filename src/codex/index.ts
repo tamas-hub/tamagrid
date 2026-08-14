@@ -6,6 +6,14 @@ export {
   TauriCodexBridge,
 } from "./bridge";
 export type { CodexBridge } from "./bridge";
+export {
+  isPackagedSoakBuild,
+  packagedSoakMaxFrameGapMs,
+  PACKAGED_SOAK_ITEM_ID,
+  startPackagedSoakFrameMonitor,
+  submitPackagedSoakReport,
+  waitForPackagedSoakCompletion,
+} from "./packagedSoak";
 export type {
   AppServerEvent,
   CodexModel,

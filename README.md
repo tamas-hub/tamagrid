@@ -8,7 +8,7 @@ Run and supervise up to four local Codex App Server threads in one desktop cockp
 
 > TamaGrid is an independent open-source project and is not affiliated with or endorsed by OpenAI.
 
-> **Project status:** Public Preview (`v0.5.0`). Preview binaries are distributed through GitHub Releases only after the documented manual release gate. Windows builds are unsigned and macOS builds are not Developer ID notarized.
+> **Project status:** Public Preview. The latest published release is `v0.5.0`; `main` is preparing an unpublished `v0.6.0` release candidate. Preview binaries are distributed through GitHub Releases only after the documented manual release gate. Windows builds are unsigned and macOS builds are not Developer ID notarized.
 
 [View release status](../../releases)
 
@@ -202,7 +202,10 @@ pnpm check
 pnpm check:app-server-schema
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 cargo test --manifest-path src-tauri/Cargo.toml
+pnpm test:packaged-soak -- --duration-ms 180000
 ```
+
+`test:packaged-soak`は通常版と別のapp identifier・test-only Rust featureを使い、Codex process、account、会話、利用枠へ接続せず、実際のpackaged Tauri windowとWebView間を流れるChannelを検証します。Windows / macOS専用で、通常buildとrelease workflowにはtest commandを含めません。
 
 ## Build
 
@@ -213,7 +216,7 @@ pnpm install --frozen-lockfile
 pnpm tauri build
 ```
 
-WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local buildには各OSのTauri prerequisitesが必要です。GitHub Actionsはpush / pull requestでquality check、依存差分review、RustSec監査、Actions / JavaScript・TypeScript / RustのCodeQL、Windows / macOS native buildを行います。手動のBundle smoke workflowでは3 platformの実bundleを7日だけ保持して確認できます。`vX.Y.Z` tagはchecksum・build provenance・production JavaScript SBOM付きdraft prereleaseだけを作り、自動公開しません。third-party actionはfull commit SHAへ固定しています。release手順は [docs/RELEASING.md](docs/RELEASING.md) を参照してください。
+WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local buildには各OSのTauri prerequisitesが必要です。GitHub Actionsはpush / pull requestでquality check、依存差分review、RustSec監査、Actions / JavaScript・TypeScript / RustのCodeQL、Windows / macOS native buildを行います。手動のBundle smoke workflowでは3 platformそれぞれで30秒のpackaged Channel / WebView試験を通過してから実bundleを作り、artifactを7日だけ保持して確認できます。`vX.Y.Z` tagはchecksum・build provenance・production JavaScript SBOM付きdraft prereleaseだけを作り、自動公開しません。third-party actionはfull commit SHAへ固定しています。release手順は [docs/RELEASING.md](docs/RELEASING.md) を参照してください。
 
 ## Contributing
 
@@ -229,7 +232,7 @@ WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local 
 - plugin、MCP elicitation、permissions grant、realtime、rollback等のexperimental APIは未実装
 - 信頼済みcode signing、notarization、自動updater、OS notificationは未実施（署名設定手順は同梱）
 - App Server schemaはCodex更新で変わり得るため、未知のnotificationは安全に無視し、互換性エラーはUIへ表示
-- 高頻度deltaはRust / rendererの両queueで上限を設け、100,000 deltaの自動stress testを通過。Tauri Channel / WebViewを含む長時間soak testは未実施
+- 高頻度deltaはRust / rendererの両queueで上限を設け、100,000 deltaの自動stress testを通過。Windowsのpackaged Tauri / WebViewでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 ms、終了後のapp / WebView残留process 0で完走。macOS実機での同等試験と強制crash時の最終確認は未実施
 
 ## Disclaimer
 

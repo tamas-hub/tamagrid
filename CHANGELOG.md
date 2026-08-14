@@ -6,6 +6,33 @@ TamaGridの利用者に影響する変更をこのファイルへ記録します
 
 未公開の変更はありません。
 
+## [0.6.0] - 2026-08-14
+
+### Added
+
+- 実行対象Codex CLIからstable App Server JSON Schemaを一時生成し、TamaGridが使用するmethod、event、approval、wire値を照合する互換性検査
+- Codex process・account・利用枠へ接続せず、実際のpackaged Tauri window、WebView、Rust Channelを通す隔離型soak test
+- Windows x64、macOS Apple Silicon、macOS Intelのmanual Bundle smokeへ30秒のpackaged WebView gateを追加
+- GitHub repository用の独自social-preview画像
+
+### Changed
+
+- Rustとrendererのdelta queueをbounded / coalesced化し、各層100,000 deltaのpayload保持・上限試験を追加
+- event sequence割当とChannel送信を直列化し、terminal / approval / errorより前にpending deltaを順序どおりflush
+- Windows Job Objectの実descendant終了testと、native macOS上で実行するUnix process-group終了testを追加
+- production CI / releaseではsoak test用featureとfrontend bridgeを明示的に無効化
+
+### Validation
+
+- Windows packaged Tauri / WebViewで3分間、9,000 delta、2,304,000 bytesを欠落0・sequence gap 0で完走
+- 同試験で最大animation-frame gap 50 ms、最新行追従0 px、正常終了後のapp / WebView残留process 0を確認
+
+### Known limitations
+
+- Windows Authenticode署名なし
+- macOS Developer ID署名 / notarizationなし
+- macOS native UI / runtimeと強制crash時のpackaged process-tree回収は未確認
+
 ## [0.5.0] - 2026-08-13
 
 ### Added

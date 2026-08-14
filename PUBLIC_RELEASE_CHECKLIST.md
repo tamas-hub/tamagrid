@@ -26,6 +26,8 @@ This checklist separates completed source/repository work, the published Public 
 - [x] Validate 100,000-delta floods in both Rust and renderer queues without payload loss or exceeding the configured bounds
 - [x] Verify Windows Job Object descendant termination at runtime and gate the equivalent Unix process-group test in native macOS CI
 - [x] Validate TamaGrid's stable App Server method, event, approval, and wire-value assumptions against the installed Codex version's generated JSON Schema
+- [x] Run the isolated Windows packaged Tauri / WebView Channel test for 3 minutes: 9,000 delta / 2,304,000 bytes, sequence gaps 0, maximum frame gap 50 ms, and no app / WebView process left after exit
+- [x] Keep the packaged-soak commands behind a non-default Rust feature and explicitly disable the frontend test bridge in production CI and release builds
 - [x] Production npm audit reports no known vulnerabilities
 - [x] Target-aware Rust advisory scan reviewed; five inherited maintenance notices documented
 - [x] Windows x64 NSIS and MSI installers built successfully
@@ -57,7 +59,8 @@ This checklist separates completed source/repository work, the published Public 
 - [x] Review repository description, topics, MIT license detection, and final public README rendering
 - [x] Add and review a custom 1280×640 repository social-preview image
 - [x] Perform manual Windows installer and UI smoke tests on an installed build
-- [ ] Perform native macOS launch, history-resume, picker, approval, and shutdown checks (both native architecture builds already pass)
+- [ ] Perform native macOS launch, history-resume, picker, approval, and shutdown checks using [`docs/MACOS_MANUAL_TEST.md`](docs/MACOS_MANUAL_TEST.md) (both native architecture builds already pass)
+- [ ] Run and inspect the updated three-platform Bundle smoke from the `v0.6.0` candidate; each target now gates bundling on a 30-second packaged Tauri / WebView Channel test
 - [x] Push `v0.5.0` from protected `main` only after explicit owner authorization
 - [x] Verify every draft-release hash and `gh attestation verify` result
 - [x] Confirm `RELEASE_NOTES.md`, `THIRD_PARTY_NOTICES.md`, and `tamagrid-js.cdx.json` are attached and covered by `SHA256SUMS.txt`
@@ -82,7 +85,7 @@ This checklist separates completed source/repository work, the published Public 
 - macOS artifacts are not Developer ID signed or notarized.
 - GitHub Artifact Attestation proves workflow provenance but does not replace platform code signing.
 - Repository-level immutable releases prevent modification after publication, but do not establish publisher identity or replace platform code signing.
-- High-frequency deltas are bounded/coalesced before the Tauri Channel and again in the renderer. Both queue layers preserve the full payload under a 100,000-delta automated stress test. The Channel's internal queue is not directly configurable, so a long-duration packaged Tauri/WebView soak test remains open.
+- High-frequency deltas are bounded/coalesced before the Tauri Channel and again in the renderer. Both queue layers preserve the full payload under a 100,000-delta automated stress test. A three-minute Windows packaged Tauri / WebView test also completed without loss or residual processes. The updated 30-second three-platform workflow has not yet been dispatched from the unpublished `v0.6.0` candidate, and native macOS manual validation remains open.
 - Tauri currently brings five `unic-*` unmaintained advisories through `tauri-utils -> urlpattern`; no severity-bearing exploit advisory was identified in the Windows/macOS target-aware scan.
 - Cargo.lock includes Tauri's Linux-only GTK `glib 0.18.5`; its unsoundness advisory is unreachable on all supported release targets and is classified `not_used`, but must be reassessed if Linux becomes supported.
 - The owner-authorized privacy rewrite replaced personal author/committer metadata across all nine historical `main` commits with GitHub noreply metadata while preserving the source tree and commit topology. Rewritten historical signatures are no longer valid, but required signed commits is restored for future `main` changes. GitHub email privacy, exposed-email push blocking, and the required CI metadata check prevent recurrence. Provider-managed pull-request/cache dereferencing remains tracked in [the privacy rewrite record](docs/PRIVACY_HISTORY_REWRITE_RECORD.md).

@@ -22,7 +22,12 @@ import { I18nProvider, translate } from "./i18n";
 import {
   CodexAdapter,
   createCodexBridge,
+  isPackagedSoakBuild,
   isJsonObject,
+  packagedSoakMaxFrameGapMs,
+  PACKAGED_SOAK_ITEM_ID,
+  startPackagedSoakFrameMonitor,
+  submitPackagedSoakReport,
   type AppServerEvent,
   type CodexModel,
   type CodexReviewTarget,
@@ -30,6 +35,7 @@ import {
   type CodexUsageSummary,
   type JsonObject,
   type JsonRpcMessage,
+  waitForPackagedSoakCompletion,
 } from "./codex";
 import {
   MAX_PROTOCOL_QUEUE_DELTA_BYTES,
@@ -135,6 +141,7 @@ function App() {
   const refreshModelsRef = useRef<() => Promise<void>>(async () => undefined);
   const refreshUsageRef = useRef<() => Promise<void>>(async () => undefined);
   const usageRefreshTimerRef = useRef<number | undefined>(undefined);
+  const packagedSoakStartedRef = useRef(false);
   const [draggingPaneId, setDraggingPaneId] = useState<string>();
   const [dragOverPaneId, setDragOverPaneId] = useState<string>();
 
@@ -828,6 +835,128 @@ function App() {
     [ensureThread],
   );
 
+  useEffect(() => {
+    if (
+      !isPackagedSoakBuild() ||
+      !connection.connected ||
+      packagedSoakStartedRef.current
+    )
+      return;
+    packagedSoakStartedRef.current = true;
+    let cancelled = false;
+    const frameMonitor = startPackagedSoakFrameMonitor();
+
+    const run = async () => {
+      const paneId = panesRef.current[0]?.id;
+      if (!paneId) throw new Error("The packaged soak has no target pane");
+      await sendTurn(paneId, "Run the deterministic packaged WebView soak");
+      const channel = await waitForPackagedSoakCompletion();
+      await waitForPackagedSoakRender(() => {
+        const pane = panesRef.current.find(
+          (candidate) => candidate.id === paneId,
+        );
+        const event = pane?.events.find(
+          (candidate) => candidate.id === PACKAGED_SOAK_ITEM_ID,
+        );
+        return pane?.status === "Done" && Boolean(event?.detail);
+      });
+      if (cancelled) return;
+
+      const frame = frameMonitor.stop();
+      const pane = panesRef.current.find(
+        (candidate) => candidate.id === paneId,
+      );
+      const assistantEvent = pane?.events.find(
+        (event) => event.id === channel.descriptor.itemId,
+      );
+      const paneElement = Array.from(
+        document.querySelectorAll<HTMLElement>(".agent-pane"),
+      ).find((element) => element.dataset.paneId === paneId);
+      const timeline = paneElement?.querySelector<HTMLElement>(".timeline");
+      const renderedAssistant =
+        paneElement?.querySelector<HTMLElement>(".event-assistant p");
+      const timelineDistance = timeline
+        ? timeline.scrollHeight - timeline.clientHeight - timeline.scrollTop
+        : Number.POSITIVE_INFINITY;
+      const failures: string[] = [];
+      const maxFrameGapThresholdMs = packagedSoakMaxFrameGapMs();
+      if (channel.receivedDeltaEvents !== channel.descriptor.deltaEvents)
+        failures.push("delta event count mismatch");
+      if (channel.receivedDeltaBytes !== channel.descriptor.expectedDeltaBytes)
+        failures.push("delta byte count mismatch");
+      if (channel.sequenceGaps !== 0)
+        failures.push("Tauri Channel sequence gap detected");
+      if (channel.lastSequence !== channel.descriptor.expectedLastSequence)
+        failures.push("terminal sequence mismatch");
+      if (channel.elapsedMs < channel.descriptor.durationMs * 0.9)
+        failures.push("stream completed too early");
+      if (frame.frames < Math.max(30, channel.descriptor.durationMs / 100))
+        failures.push("animation frame heartbeat was too sparse");
+      if (frame.maxFrameGapMs >= maxFrameGapThresholdMs)
+        failures.push(
+          `WebView was unresponsive for at least ${maxFrameGapThresholdMs} ms`,
+        );
+      if (pane?.status !== "Done")
+        failures.push("pane did not reach the Done state");
+      if (pane?.activeTurnId !== undefined)
+        failures.push("active turn id was not cleared");
+      if (!assistantEvent?.detail?.includes("output truncated by TamaGrid"))
+        failures.push(
+          "authoritative assistant output was not safely truncated",
+        );
+      if (renderedAssistant?.textContent !== assistantEvent?.detail)
+        failures.push("rendered assistant text does not match pane state");
+      if (timelineDistance > 24)
+        failures.push("timeline did not remain scrolled to the latest row");
+
+      await submitPackagedSoakReport({
+        passed: failures.length === 0,
+        failures,
+        durationMs: channel.descriptor.durationMs,
+        elapsedMs: Math.round(channel.elapsedMs),
+        expectedDeltaEvents: channel.descriptor.deltaEvents,
+        receivedDeltaEvents: channel.receivedDeltaEvents,
+        expectedDeltaBytes: channel.descriptor.expectedDeltaBytes,
+        receivedDeltaBytes: channel.receivedDeltaBytes,
+        expectedLastSequence: channel.descriptor.expectedLastSequence,
+        lastSequence: channel.lastSequence,
+        sequenceGaps: channel.sequenceGaps,
+        animationFrames: frame.frames,
+        maxFrameGapMs: Math.round(frame.maxFrameGapMs),
+        maxFrameGapThresholdMs,
+        finalPaneStatus: pane?.status ?? "missing",
+        activeTurnCleared: pane?.activeTurnId === undefined,
+        renderedAssistantChars: renderedAssistant?.textContent?.length ?? 0,
+        timelineDistancePx: Number.isFinite(timelineDistance)
+          ? Math.round(timelineDistance)
+          : null,
+        documentVisibility: document.visibilityState,
+      });
+    };
+
+    void run().catch(async (error) => {
+      const frame = frameMonitor.stop();
+      if (cancelled) return;
+      try {
+        await submitPackagedSoakReport({
+          passed: false,
+          failures: [errorMessage(error)],
+          animationFrames: frame.frames,
+          maxFrameGapMs: Math.round(frame.maxFrameGapMs),
+          documentVisibility: document.visibilityState,
+        });
+      } catch {
+        // The Node runner has its own process timeout for failures that prevent
+        // the test-only reporting command from responding.
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      frameMonitor.stop();
+    };
+  }, [connection.connected, sendTurn]);
+
   const steerTurn = useCallback(async (paneId: string, text: string) => {
     const pane = panesRef.current.find((candidate) => candidate.id === paneId);
     if (
@@ -1370,6 +1499,24 @@ function authStatusFromUpdate(params: JsonObject): string {
   if (typeof params.authMode === "string")
     return `${params.authMode} available`;
   return "Unknown";
+}
+
+async function waitForPackagedSoakRender(ready: () => boolean): Promise<void> {
+  const deadline = performance.now() + 10_000;
+  while (!ready()) {
+    if (performance.now() >= deadline)
+      throw new Error("The packaged soak terminal state was not rendered");
+    await new Promise<void>((resolve) =>
+      window.requestAnimationFrame(() => resolve()),
+    );
+  }
+  await new Promise<void>((resolve) =>
+    window.requestAnimationFrame(() => resolve()),
+  );
+  await new Promise<void>((resolve) =>
+    window.requestAnimationFrame(() => resolve()),
+  );
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 200));
 }
 
 function threadOptionsFromPane(pane: PaneRuntimeState) {
