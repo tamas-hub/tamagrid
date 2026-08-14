@@ -97,7 +97,7 @@ Codex更新後は `pnpm check:app-server-schema` を実行すると、shellを�
 
 runnerはevent件数、UTF-8 byte数、sequence gap、animation-frame heartbeat、authoritative item / turn完了、最新行追従、終了codeを検査します。Windowsでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 msで完走し、別のOS process観測で終了後のapp / direct WebView child残留0も確認しました。manual Bundle smokeはWindows x64 / macOS arm64 / macOS x64それぞれで30秒の同試験をbundle前に実行します。実機向けframe-gap上限は既定1.5秒のまま、共有Windows runnerでは一時的なVM schedulingをapp hangと誤判定しないよう2.5秒を明示し、適用した上限もreportへ記録します。通常のCIとrelease buildは `VITE_TAMAGRID_SOAK=0` を明示し、non-default Rust featureを有効にしないため、配布binaryにはtest commandを含めません。
 
-同じrunnerがtest-only App Server fixtureをproductionと同じ `StdioTransport` から起動します。fixtureはWindows Job ObjectまたはmacOS process-group guardのready確認後に固定JSONL gateを受け取り、それから孫processを生成します。外側のrunnerはpackaged Tauri appだけを強制終了し、fixture親・孫PID（macOSではguard PIDも）が5秒以内に消えることをWindows x64 / macOS arm64 / macOS x64で検査します。2026-08-15のWindows local run 4回ではすべて695 ms以内、残留0でした。fixture binary、環境変数、IPC stateは `packaged-soak-test` featureに限定し、通常production binaryのmarker scanでも混入0を確認しています。macOS固有の結果はnative Bundle smokeで確定します。
+同じrunnerがtest-only App Server fixtureをproductionと同じ `StdioTransport` から起動します。fixtureはWindows Job ObjectまたはmacOS process-group guardのready確認後に固定JSONL gateを受け取り、それから孫processを生成します。外側のrunnerはpackaged Tauri appだけを強制終了し、fixture親・孫PID（macOSではguard PIDも）が5秒以内に消えることをWindows x64 / macOS arm64 / macOS x64で検査します。2026-08-15のWindows local run 4回ではすべて695 ms以内、残留0でした。[native Bundle smoke 31847223651](https://github.com/tamas-hub/tamagrid/actions/runs/31847223651)ではApple Siliconを2,794 ms、Intelを996 msでguardごと回収し、両方とも残留0でした。fixture binary、環境変数、IPC stateは `packaged-soak-test` featureに限定し、通常production binaryのmarker scanでも混入0を確認しています。
 
 ## Persistence
 

@@ -10,8 +10,8 @@
 - release workflow [31757215002](https://github.com/tamas-hub/tamagrid/actions/runs/31757215002)はquality、Windows x64、macOS arm64、macOS x64、checksums、provenance verificationの全jobが成功
 - 公開assetは10件。`SHA256SUMS.txt`の9項目を独立再計算し、10 assetすべての`gh attestation verify`、6 packageのarchive integrity、Microsoft Defender scanを通過
 - 公開後記録を反映した`main` commit `27e7476263b04569efbea8ee2db09bd5ec57419f`でCI、CodeQL、Security auditが成功し、open CodeQL / secret scanning / Dependabot alertは各0
-- Windows Authenticode署名、macOS Developer ID署名 / notarization、macOS実機Pass報告の詳細証拠、macOS packaged appの強制crash試験はPublic Preview制限として継続。Windows packaged Tauri / WebViewの3分間負荷試験は2026-08-14、隔離強制crash試験は後続`main`で2026-08-15に完了
-- 追加hardeningでは、Rustとrendererそれぞれで100,000 deltaのpayload保持とqueue上限を確認し、Windows Job Objectが実際のdescendant processを終了するruntime testを通過。Unix process-groupの同等testもnative macOS CIへ追加
+- Windows Authenticode署名、macOS Developer ID署名 / notarization、macOS実機Pass報告の詳細証拠はPublic Preview制限として継続。immutableな`v0.6.0` assetは後続のmacOS強制crash guardを含まない。Windows packaged Tauri / WebViewの3分間負荷試験は2026-08-14、隔離強制crash試験はWindows localと後続native macOS workflowで2026-08-15に完了
+- 追加hardeningでは、Rustとrendererそれぞれで100,000 deltaのpayload保持とqueue上限を確認し、Windows Job Objectが実際のdescendant processを終了するruntime testを通過。[Bundle smoke 31847223651](https://github.com/tamas-hub/tamagrid/actions/runs/31847223651)でUnix process-group guardの同等testもmacOS Apple Silicon / Intelの両方で通過
 - privacy rewrite後の現行`main`はnon-noreply metadata 0件。GitHub管理の全17 PR / 20 PR commitを再測定すると、merged PR #9、#10、#11経由でnon-noreply metadataを持つ旧commit 3件が引き続き到達可能。値と旧SHAは公開せず、provider側dereference / garbage collection依頼を継続
 
 以下の公開前判断と検証値は監査時点の履歴として保持します。「binary release未作成」「tag付きattestation未実行」という記述より、この公開後ステータス更新を現在値として優先してください。
@@ -22,7 +22,7 @@ Windowsのtest-only packaged appから、productionと同じ `StdioTransport` / 
 
 fixture binary、IPC state、環境変数は `packaged-soak-test` featureだけに存在します。通常production buildをfeatureなし・`VITE_TAMAGRID_SOAK=0`で再生成し、test command、fixture名、環境変数prefix、start-gate methodのbinary markerが各0件であることを確認しました。
 
-macOS sourceには、TamaGrid親processを`kqueue`の`EVFILT_PROC / NOTE_EXIT`で監視する独立guardを追加しました。guardは同一app binaryの固定internal modeで、shellや任意commandを受け付けません。guard ready後だけtransportを公開し、親の強制終了時はApp Server専用process groupを終了します。guard自身の予期しない終了や監視errorでもApp Server groupを終了し、pending response、approval、active turnをdisconnect処理で破棄します。同じpackaged crash runnerをmacOS Apple Silicon / Intelへ拡張しましたが、native workflow結果は未確定です。実Codex commandを使う長時間・多段descendant試験は未実施で、この変更はimmutable `v0.6.0` assetには含まれません。
+macOS sourceには、TamaGrid親processを`kqueue`の`EVFILT_PROC / NOTE_EXIT`で監視する独立guardを追加しました。guardは同一app binaryの固定internal modeで、shellや任意commandを受け付けません。guard ready後だけtransportを公開し、親の強制終了時はApp Server専用process groupを終了します。guard自身の予期しない終了や監視errorでもApp Server groupを終了し、pending response、approval、active turnをdisconnect処理で破棄します。同じpackaged crash runnerはnative Apple Silicon / Intelでpassし、fixture親・孫・guardをそれぞれ2,794 ms / 996 msで回収、残留0でした。実Codex commandを使う長時間・多段descendant試験は未実施で、この変更はimmutable `v0.6.0` assetには含まれません。
 
 ## 結論
 
@@ -109,7 +109,7 @@ macOS sourceには、TamaGrid親processを`kqueue`の`EVFILT_PROC / NOTE_EXIT`�
 ### TG-SEC-005 — App Serverの直接childだけをkillし、process treeをcontainしていない
 
 - Severity: **Medium**
-- Status: **Resolved in source; Windows packaged coverage complete, macOS packaged validation pending** — active turn notificationをtransportで追跡し、shutdown前にbest-effort interrupt。Windows kill-on-close Job ObjectとmacOS process groupを追加し、stdin close / 3秒wait後にprocess treeを終了。Windowsではunit testに加え、実際のpackaged Tauri appを強制終了してfixture親・孫が残留しないことを外側から確認。macOSは親TamaGridの異常終了を監視する独立guardと同じpackaged testをsourceへ追加。
+- Status: **Resolved in source; Windows and macOS packaged coverage complete** — active turn notificationをtransportで追跡し、shutdown前にbest-effort interrupt。Windows kill-on-close Job ObjectとmacOS process groupを追加し、stdin close / 3秒wait後にprocess treeを終了。Windowsではunit testに加え、実際のpackaged Tauri appを強制終了してfixture親・孫が残留しないことを外側から確認。macOSは親TamaGridの異常終了を監視する独立guardを追加し、Apple Silicon / Intel両方で同じpackaged testを通過。
 - Rule ID: `TAURI-LIFECYCLE-001`
 - Location:
   - `src-tauri/src/codex/transport.rs:73-90`
@@ -120,8 +120,8 @@ macOS sourceには、TamaGrid親processを`kqueue`の`EVFILT_PROC / NOTE_EXIT`�
 - Original evidence:正常終了はstdin closeと3秒wait、その後 `child.kill()` でした。Windows Job ObjectやmacOS process groupの設定はなく、終了時にactive turnを先にinterruptするmanager stateもありませんでした。
 - Impact: App Serverが起動したcommand/tool processが子孫として残る実装の場合、TamaGrid終了後も処理が続く可能性があります。利用者が「アプリを閉じたので停止した」と誤認し、file/network operationが継続するおそれがあります。
 - Recommended fix: active turnを追跡してclose前にbest-effort `turn/interrupt`、短いgrace、stdin close、wait、最後にprocess tree killの順にします。Windowsでは `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` のJob ObjectへApp Serverを割り当て、macOSでは専用process groupを管理します。[Microsoft Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects) / [Apple kqueue(2)](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/kevent.2.html) / [Apple kill(2)](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/kill.2.html)
-- Remediation evidence: production transportはactive turn interrupt、stdin close、bounded waitの後にOS process treeを終了します。Windows runtime unit testは実descendantを使用し、追加のpackaged test 4回はTauri appを強制killした後に同じJob Object内のfixture親・孫をすべて695 ms以内で回収しました。macOS guardはfixed internal argv、親PID一致、対象group leader、ready pipeを検証し、異常時はfail closedします。test helperは通常production binaryに含まれません。
-- Confidence: High on Windows、Medium on macOS（native workflow前）。Windowsは正常shutdown fallbackとpackaged app強制終了の両方を実processで確認。macOSはnative process-group termination unit testを通過し、packaged crash用sourceも追加しましたが、そのnative実行結果は未確認です。
+- Remediation evidence: production transportはactive turn interrupt、stdin close、bounded waitの後にOS process treeを終了します。Windows runtime unit testは実descendantを使用し、追加のpackaged test 4回はTauri appを強制killした後に同じJob Object内のfixture親・孫をすべて695 ms以内で回収しました。macOS guardはfixed internal argv、親PID一致、対象group leader、ready pipeを検証し、異常時はfail closedします。native packaged testはApple Siliconで2,794 ms、Intelで996 ms以内にfixture親・孫・guardを回収しました。test helperは通常production binaryに含まれません。
+- Confidence: High on supported Windows / macOS containment paths。Windowsは正常shutdown fallbackとpackaged app強制終了の両方を実processで確認。macOSもnative process-group unit testとApple Silicon / Intel packaged app強制終了を実processで確認しました。実Codex commandによる長時間・多段process treeは別の未検証範囲です。
 
 ### TG-SEC-006 — Release workflowがmutable action tagとworkflow-wide write tokenを使う
 
@@ -246,13 +246,14 @@ macOS sourceには、TamaGrid親processを`kqueue`の`EVFILT_PROC / NOTE_EXIT`�
 - Final `v0.5.0` release: 10 asset / zero-length 0、SHA-256 manifest 9/9、Artifact Attestation 10/10、archive integrity 6/6、Microsoft Defender **no threats found**、anonymous release page / Windows installer access **HTTP 200 / 206**。公開後のreleaseは`draft=false`、`prerelease=true`、`immutable=true`。
 - Local `v0.6.0` candidate packaged soak: Windowsで3分間・9,000 delta・2,304,000 bytes、sequence gap 0、最大frame gap 50 ms、最新行距離0 px、正常終了後のTamaGrid / direct WebView child残留0、test temporary directory残留0。Codex process・account・利用枠には接続していません。
 - Post-`v0.6.0` Windows packaged crash probe: 30秒WebView soakは1,500 delta・384,000 bytes、sequence gap 0、最大frame gap 33 ms、最新行距離0 px。安全側cleanup修正後を含む5秒再試験3回も各250 delta・64,000 bytes、sequence gap 0で通過。各run後に隔離Tauri appを強制終了し、Job Object内のfixture親・孫をすべて695 ms以内で回収、残留0。通常production binaryのtest marker 5種は各0件。
+- Post-`v0.6.0` native packaged crash probe: [Bundle smoke 31847223651](https://github.com/tamas-hub/tamagrid/actions/runs/31847223651)はexact source commit `12e1b19802826c14c20b83392d601c65fb4719bb`でWindows x64 / macOS arm64 / macOS x64がall success。両macOSは30秒・1,500 delta・384,000 bytes、sequence gap 0、最新行距離0 px。最大frame gapはApple Silicon 49 ms / Intel 264 msで、packaged app強制終了後のfixture親・孫・guard回収は2,794 ms / 996 ms、残留0。
 
 ## 限界
 
 - sourceとlocal buildを対象としたstatic / dependency reviewです。第三者penetration testや形式検証ではありません。
 - 実際の悪意あるWebView payload、Codex prompt injection、sandbox escapeは実行していません。
-- descendant process終了はWindows Job Objectのruntime unit testとpackaged app強制crashの両方で再現し、macOSには正常終了test、独立crash guard、packaged crash runnerを追加しました。ただしnative workflow実行前であり、多段・長時間の実Codex commandを使う試験の代替でもありません。
+- descendant process終了はWindows Job Objectのruntime unit testとpackaged app強制crashの両方で再現し、macOSも正常終了test、独立crash guard、Apple Silicon / Intelのnative packaged crashで再現しました。ただし決定的fixtureによる試験であり、多段・長時間の実Codex commandを使う試験の代替ではありません。
 - event floodはRust / renderer両queueで100,000 delta、Windows packaged Tauri / WebViewで3分間のstreamを再現しました。macOS実機はowner-reported Passですが、同等負荷の項目別証拠は未記録です。
-- Windowsの隔離packaged強制crash試験は通過しましたが、fixtureによる決定的試験です。実Codexが実行中のcommandを持つ状態の強制終了は未実施で、macOS同等試験はnative workflowでの確定が必要です。
+- Windows / macOSの隔離packaged強制crash試験は通過しましたが、fixtureによる決定的試験です。実Codexが実行中のcommandを持つ状態の強制終了は未実施です。
 - OSV/RustSec照合は監査時点の公開databaseに依存し、未知脆弱性を否定するものではありません。
 - OS WebView2、Codex CLI、OpenAI serviceそのものの脆弱性は対象外です。

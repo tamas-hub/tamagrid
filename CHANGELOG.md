@@ -14,7 +14,8 @@ TamaGridの利用者に影響する変更をこのファイルへ記録します
 ### Validation
 
 - Windows packaged appの強制終了試験を4回実行し、fixture親・孫processをすべて695 ms以内で回収、残留0を確認
-- Windows上でfrontend 46 tests、Rust 15 tests、全feature Clippyを再実行してpass。macOS固有guardとpackaged crash probeはnative CI / Bundle smokeで検証する
+- Windows上でfrontend 46 tests、Rust 15 tests、全feature Clippyを再実行してpass。Draft PR #27のrequired CIもCodeQL、Dependency Review、frontend、RustSec、Windows / macOS nativeを含めて全件pass
+- [Bundle smoke 31847223651](https://github.com/tamas-hub/tamagrid/actions/runs/31847223651)でmacOS Apple Silicon / Intelの30秒・1,500 delta・384,000 bytesをsequence gap 0、最新行距離0 pxで完走。packaged app強制終了後、fixture親・孫・guardをApple Silicon 2,794 ms、Intel 996 msで回収し、残留0を確認
 - 通常のproduction buildを再生成し、強制終了試験のcommand、環境変数、helper名が本体binaryに含まれないことを確認
 
 ## [0.6.0] - 2026-08-14

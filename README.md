@@ -241,7 +241,7 @@ WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local 
 - plugin、MCP elicitation、permissions grant、realtime、rollback等のexperimental APIは未実装
 - 信頼済みcode signing、notarization、自動updater、OS notificationは未実施（署名設定手順は同梱）
 - App Server schemaはCodex更新で変わり得るため、未知のnotificationは安全に無視し、互換性エラーはUIへ表示
-- 高頻度deltaはRust / rendererの両queueで上限を設け、100,000 deltaの自動stress testを通過。Windowsのpackaged Tauri / WebViewでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 msで完走。後続`main`では隔離packaged appを強制終了する試験を4回行い、productionと同じJob Object内のfixture親・孫processをすべて695 ms以内で回収、残留0を確認。macOS Apple Silicon / Intelも同じ強制終了回帰試験の対象へ追加し、native workflow結果をrelease evidenceとして別途記録する
+- 高頻度deltaはRust / rendererの両queueで上限を設け、100,000 deltaの自動stress testを通過。Windowsのpackaged Tauri / WebViewでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 msで完走。後続sourceでは隔離packaged appを強制終了する試験をWindowsで4回行い、productionと同じJob Object内のfixture親・孫processをすべて695 ms以内で回収、残留0を確認。[native Bundle smoke 31847223651](https://github.com/tamas-hub/tamagrid/actions/runs/31847223651)ではmacOS Apple Silicon / Intelも1,500 delta・384,000 bytes、sequence gap 0、最新行距離0 pxで完走し、fixture親・孫・独立guardをそれぞれ2,794 ms / 996 msで回収、残留0を確認。このpost-`v0.6.0` hardeningはimmutableな公開済み`v0.6.0` assetには含まれない
 
 ## Disclaimer
 
