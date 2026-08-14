@@ -95,6 +95,8 @@ Codex更新後は `pnpm check:app-server-schema` を実行すると、shellを�
 
 runnerはevent件数、UTF-8 byte数、sequence gap、animation-frame heartbeat、authoritative item / turn完了、最新行追従、終了codeを検査します。Windowsでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 msで完走し、別のOS process観測で終了後のapp / direct WebView child残留0も確認しました。manual Bundle smokeはWindows x64 / macOS arm64 / macOS x64それぞれで30秒の同試験をbundle前に実行します。実機向けframe-gap上限は既定1.5秒のまま、共有Windows runnerでは一時的なVM schedulingをapp hangと誤判定しないよう2.5秒を明示し、適用した上限もreportへ記録します。通常のCIとrelease buildは `VITE_TAMAGRID_SOAK=0` を明示し、non-default Rust featureを有効にしないため、配布binaryにはtest commandを含めません。
 
+Windowsでは同じrunnerがtest-only App Server fixtureをproductionと同じ `StdioTransport` から起動します。fixtureはJob Object割当後の固定JSONL gateを受け取ってから孫processを生成し、外側のrunnerがpackaged Tauri appだけを強制終了します。親・孫PIDの両方が5秒以内に消えることを検査し、2026-08-15のlocal run 3回ではすべて627 ms以内、残留0でした。fixture binary、環境変数、IPC stateは `packaged-soak-test` featureに限定し、通常production binaryのmarker scanでも混入0を確認しています。macOSは正常終了時のprocess-group testをnative CIで実行しますが、packaged app強制crashの同等試験は継続課題です。
+
 ## Persistence
 
 localStorageに保存するもの:

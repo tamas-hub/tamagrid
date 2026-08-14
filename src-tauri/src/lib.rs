@@ -69,6 +69,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppServerManager::default());
     #[cfg(feature = "packaged-soak-test")]
+    let builder = builder.manage(codex::soak::ProcessTreeProbeState::default());
+    #[cfg(feature = "packaged-soak-test")]
     let builder = builder.invoke_handler(tamagrid_handlers![
         codex::soak::run_protocol_soak,
         codex::soak::complete_protocol_soak,

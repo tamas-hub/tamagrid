@@ -16,6 +16,7 @@ const resultDirectory = await mkdtemp(
   join(temporaryRoot, "tamagrid-packaged-soak-"),
 );
 const resultPath = join(resultDirectory, "result.json");
+const processTreeResultPath = join(resultDirectory, "process-tree.json");
 const tauriCli = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
 
 try {
@@ -37,6 +38,22 @@ try {
       VITE_TAMAGRID_SOAK_DURATION_MS: String(options.durationMs),
       VITE_TAMAGRID_SOAK_MAX_FRAME_GAP_MS: String(options.maxFrameGapMs),
     });
+
+    if (process.platform === "win32" && !options.skipProcessTreeCrash) {
+      const fixtureBuildArguments = [
+        "build",
+        "--manifest-path",
+        join(root, "src-tauri", "Cargo.toml"),
+        "--release",
+        "--features",
+        "packaged-soak-test",
+        "--bin",
+        "tamagrid-process-tree-fixture",
+      ];
+      if (options.target)
+        fixtureBuildArguments.push("--target", options.target);
+      await runProcess("cargo", fixtureBuildArguments, process.env);
+    }
   }
 
   const binary = join(
@@ -65,6 +82,32 @@ try {
 
   process.stdout.write("Packaged Tauri Channel/WebView soak passed.\n");
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+
+  if (process.platform === "win32" && !options.skipProcessTreeCrash) {
+    const fixtureBinary = join(
+      root,
+      "src-tauri",
+      "target",
+      ...(options.target ? [options.target] : []),
+      "release",
+      "tamagrid-process-tree-fixture.exe",
+    );
+    await access(fixtureBinary);
+    const crashReport = await runProcessTreeCrashProbe(
+      binary,
+      fixtureBinary,
+      processTreeResultPath,
+      resultPath,
+    );
+    process.stdout.write(
+      "Packaged forced-crash process-tree recovery passed.\n",
+    );
+    process.stdout.write(`${JSON.stringify(crashReport, null, 2)}\n`);
+  } else if (process.platform === "darwin") {
+    process.stdout.write(
+      "Packaged forced-crash process-tree recovery is not yet enabled on macOS.\n",
+    );
+  }
 } finally {
   await removeExactTemporaryDirectory(resultDirectory);
 }
@@ -74,6 +117,7 @@ function parseOptions(args) {
   let maxFrameGapMs = 1_500;
   let target;
   let skipBuild = false;
+  let skipProcessTreeCrash = false;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (argument === "--") {
@@ -86,6 +130,8 @@ function parseOptions(args) {
       target = args[++index];
     } else if (argument === "--skip-build") {
       skipBuild = true;
+    } else if (argument === "--skip-process-tree-crash") {
+      skipProcessTreeCrash = true;
     } else {
       throw new Error(`Unknown packaged soak option: ${argument}`);
     }
@@ -107,7 +153,177 @@ function parseOptions(args) {
   if (target !== undefined && !/^[a-zA-Z0-9_-]+$/.test(target)) {
     throw new Error("--target contains unsupported characters");
   }
-  return { durationMs, maxFrameGapMs, target, skipBuild };
+  return {
+    durationMs,
+    maxFrameGapMs,
+    target,
+    skipBuild,
+    skipProcessTreeCrash,
+  };
+}
+
+async function runProcessTreeCrashProbe(
+  binary,
+  fixtureBinary,
+  reportPath,
+  unusedSoakResultPath,
+) {
+  const child = spawn(binary, [], {
+    cwd: root,
+    env: {
+      ...process.env,
+      TAMAGRID_SOAK_RESULT_PATH: unusedSoakResultPath,
+      TAMAGRID_SOAK_PROCESS_TREE_FIXTURE_PATH: fixtureBinary,
+      TAMAGRID_SOAK_PROCESS_TREE_RESULT_PATH: reportPath,
+    },
+    shell: false,
+    stdio: "inherit",
+    windowsHide: false,
+  });
+  let fixtureReport;
+  let fixturePidsValidated = false;
+  let probeCompleted = false;
+  const startedAt = Date.now();
+  try {
+    fixtureReport = await waitForProcessTreeReport(reportPath, child, 60_000);
+    const { parentPid, descendantPid } = fixtureReport;
+    validateFixturePids(parentPid, descendantPid, child.pid);
+    fixturePidsValidated = true;
+    if (!isProcessRunning(parentPid) || !isProcessRunning(descendantPid)) {
+      throw new Error(
+        "The process-tree fixture was not fully running before the crash",
+      );
+    }
+
+    const exit = waitForChildExit(child, 10_000);
+    if (!child.kill("SIGKILL")) {
+      throw new Error("Could not force-terminate the packaged soak process");
+    }
+    await exit;
+    await waitForProcessesToExit([parentPid, descendantPid], 5_000);
+    probeCompleted = true;
+    return {
+      passed: true,
+      appPid: child.pid,
+      parentPid,
+      descendantPid,
+      recoveryMs: Date.now() - startedAt,
+    };
+  } finally {
+    if (isProcessRunning(child.pid)) {
+      child.kill("SIGKILL");
+      await waitForChildExit(child, 5_000).catch(() => undefined);
+    }
+    if (fixtureReport && fixturePidsValidated && !probeCompleted) {
+      for (const pid of [
+        fixtureReport.parentPid,
+        fixtureReport.descendantPid,
+      ]) {
+        if (Number.isSafeInteger(pid) && pid > 0 && isProcessRunning(pid)) {
+          try {
+            process.kill(pid, "SIGKILL");
+          } catch (error) {
+            if (error?.code !== "ESRCH") throw error;
+          }
+        }
+      }
+    }
+  }
+}
+
+async function waitForProcessTreeReport(path, child, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      throw new Error(
+        `Packaged soak exited before the process-tree report (code ${child.exitCode}, signal ${child.signalCode})`,
+      );
+    }
+    try {
+      return JSON.parse(await readFile(path, "utf8"));
+    } catch (error) {
+      lastError = error;
+      await delay(50);
+    }
+  }
+  throw new Error(
+    `Process-tree fixture did not report within ${timeoutMs} ms: ${lastError}`,
+  );
+}
+
+function validateFixturePids(parentPid, descendantPid, appPid) {
+  for (const [name, value] of [
+    ["parentPid", parentPid],
+    ["descendantPid", descendantPid],
+  ]) {
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      throw new Error(`The process-tree report has an invalid ${name}`);
+    }
+  }
+  if (
+    parentPid === descendantPid ||
+    parentPid === appPid ||
+    descendantPid === appPid ||
+    parentPid === process.pid ||
+    descendantPid === process.pid
+  ) {
+    throw new Error("The process-tree report contains overlapping PIDs");
+  }
+}
+
+function isProcessRunning(pid) {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === "ESRCH") return false;
+    if (error?.code === "EPERM") return true;
+    throw error;
+  }
+}
+
+async function waitForProcessesToExit(pids, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const running = pids.filter(isProcessRunning);
+    if (running.length === 0) return;
+    await delay(25);
+  }
+  const running = pids.filter(isProcessRunning);
+  throw new Error(
+    `Forced crash left process-tree fixture PIDs running: ${running.join(", ")}`,
+  );
+}
+
+function waitForChildExit(child, timeoutMs) {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve();
+  }
+  return new Promise((resolvePromise, rejectPromise) => {
+    const timer = setTimeout(() => {
+      rejectPromise(
+        new Error(
+          `Process did not exit within ${timeoutMs} ms after termination`,
+        ),
+      );
+    }, timeoutMs);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      rejectPromise(error);
+    });
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolvePromise();
+    });
+  });
+}
+
+function delay(milliseconds) {
+  return new Promise((resolvePromise) =>
+    setTimeout(resolvePromise, milliseconds),
+  );
 }
 
 function runProcess(command, args, environment, timeoutMs) {
