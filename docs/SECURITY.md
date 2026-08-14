@@ -2,7 +2,7 @@
 
 ## Supported scope
 
-0.5.xはPublic Previewです。security fixはmain branchへ適用し、公開releaseがある場合は最新0.5.xだけを対象にします。脆弱性の非公開報告手順はrepository rootの [SECURITY.md](../SECURITY.md) を参照してください。
+0.5.xはPublic Previewです。現在の公開releaseは`v0.5.0`で、security fixはmain branchへ適用し、最新の公開0.5.xだけを対象にします。脆弱性の非公開報告手順はrepository rootの [SECURITY.md](../SECURITY.md) を参照してください。
 
 ## Trust boundary
 

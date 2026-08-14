@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-TamaGrid is currently a public source preview with no published binary release. Security fixes are applied to `main`; after releases begin, support will cover the latest 0.5.x preview only.
+TamaGrid `v0.5.0` is published as an immutable Public Preview prerelease. Security fixes are applied to `main`; support covers the latest published 0.5.x preview only. Windows artifacts are not Authenticode-signed, and macOS artifacts are not Developer ID signed or notarized. Verify the GitHub Release origin, `SHA256SUMS.txt`, and GitHub Artifact Attestation before installing.
 
 ## Reporting a vulnerability
 

@@ -51,7 +51,8 @@ This checklist separates completed source/repository work, the published Public 
 - [x] Re-run all three bundles after the Intel-macOS pnpm fallback; inspect 3 artifacts / 22 nonempty files, verify architecture/metadata/hashes, and scan the downloaded tree with Microsoft Defender
 - [x] Classify `glib` advisory `GHSA-wrw7-89jp-8q8g` as not used only after locked target graphs prove it unreachable on supported Windows/macOS targets; keep RustSec monitoring and reassess before Linux support
 - [x] Confirm draft-release Artifact Attestation permissions and verify every attestation after an explicitly authorized tag run
-- [ ] Review repository description, topics, social preview, license detection, and README rendering (description/topics/license completed; social preview and final rendered README remain)
+- [x] Review repository description, topics, MIT license detection, and final public README rendering
+- [ ] Add and review a custom repository social-preview image
 - [x] Perform manual Windows installer and UI smoke tests on an installed build
 - [ ] Perform native macOS launch, history-resume, picker, approval, and shutdown checks (both native architecture builds already pass)
 - [x] Push `v0.5.0` from protected `main` only after explicit owner authorization
