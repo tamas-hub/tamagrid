@@ -55,3 +55,16 @@
 ## Result notes
 
 失敗時は、再現手順、期待結果、実際の結果、architecture、macOS / Codex version、秘密情報を除いたscreenshotまたはlogを記録します。成功時も上記のbuild commitとpackage hashを残します。macOS実機確認が完了するまで、release checklistの該当項目を完了扱いにしません。
+
+## v0.6.0 owner-reported result
+
+- Date: 2026-08-14
+- Tester: Repository owner
+- TamaGrid commit: Not recorded
+- Package filename and SHA-256: Not recorded
+- Mac model / CPU architecture: Not recorded
+- macOS version: Not recorded
+- Codex CLI version: Not recorded
+- Result: Pass (owner reported)
+
+Repository ownerからmacOS実機で問題なしとの報告を受けました。秘密情報や個人情報は記録していません。この記録は上記各項目の独立検証を主張するものではなく、package hash、機種、OS version、項目別結果、強制crash時のprocess-tree回収は未確認事項としてrelease notesへ残します。

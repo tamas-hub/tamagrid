@@ -10,7 +10,7 @@
 - release workflow [31757215002](https://github.com/tamas-hub/tamagrid/actions/runs/31757215002)はquality、Windows x64、macOS arm64、macOS x64、checksums、provenance verificationの全jobが成功
 - 公開assetは10件。`SHA256SUMS.txt`の9項目を独立再計算し、10 assetすべての`gh attestation verify`、6 packageのarchive integrity、Microsoft Defender scanを通過
 - 公開後記録を反映した`main` commit `27e7476263b04569efbea8ee2db09bd5ec57419f`でCI、CodeQL、Security auditが成功し、open CodeQL / secret scanning / Dependabot alertは各0
-- Windows Authenticode署名、macOS Developer ID署名 / notarization、macOS native runtime確認、packaged appの強制crash試験は未完了のため、Public Preview制限として継続。Windows packaged Tauri / WebViewの3分間負荷試験は2026-08-14に完了
+- Windows Authenticode署名、macOS Developer ID署名 / notarization、macOS実機Pass報告の詳細証拠、packaged appの強制crash試験はPublic Preview制限として継続。Windows packaged Tauri / WebViewの3分間負荷試験は2026-08-14に完了
 - 追加hardeningでは、Rustとrendererそれぞれで100,000 deltaのpayload保持とqueue上限を確認し、Windows Job Objectが実際のdescendant processを終了するruntime testを通過。Unix process-groupの同等testもnative macOS CIへ追加
 - privacy rewrite後の現行`main`はnon-noreply metadata 0件。GitHub管理の全17 PR / 20 PR commitを再測定すると、merged PR #9、#10、#11経由でnon-noreply metadataを持つ旧commit 3件が引き続き到達可能。値と旧SHAは公開せず、provider側dereference / garbage collection依頼を継続
 
@@ -28,7 +28,7 @@
 - Low open: 0（resolved: 1、strongly mitigated with residual validation: 1）
 - Informational / residual risk: 2
 
-初回推奨判断では、hardened PR CI、3-platform bundle smoke、GitHub security settings、署名なしinstallerの最終手動gateを通してからbinary releaseを判断するとしました。これらの公開gate完了後に`v0.5.0` Public Previewを公開済みです。Windows packaged appの長時間stream試験は追加完了しました。macOS native runtimeと、強制crash・多段descendantを含むend-to-end終了試験は安定版判断前の継続課題です。「脆弱性がない」ことを保証する評価ではありません。
+初回推奨判断では、hardened PR CI、3-platform bundle smoke、GitHub security settings、署名なしinstallerの最終手動gateを通してからbinary releaseを判断するとしました。これらの公開gate完了後に`v0.5.0` Public Previewを公開済みです。Windows packaged appの長時間stream試験は追加完了し、repository ownerからmacOS実機Passの報告を受けました。macOSのpackage hash・機種・OS・項目別証拠と、強制crash・多段descendantを含むend-to-end終了試験は安定版判断前の継続課題です。「脆弱性がない」ことを保証する評価ではありません。
 
 ## Initial findings and remediation
 
@@ -116,7 +116,7 @@
 ### TG-SEC-006 — Release workflowがmutable action tagとworkflow-wide write tokenを使う
 
 - Severity: **Medium**
-- Status: **Resolved and CI/bundle verified** — actionを実在確認済みのfull SHAへpin、checkoutのcredential persistenceを無効化し、workflow defaultを`contents: read`へ縮小。write / OIDC / attestation権限を必要jobだけへ付与し、tag qualityへRust fmt / clippy / test、artifact + release metadata + checksum attestation、Dependabotを追加。protected PRと3-platform bundleで検証済み。tag release / attestation生成だけは未実行。
+- Status: **Resolved and CI/bundle verified** — actionを実在確認済みのfull SHAへpin、checkoutのcredential persistenceを無効化し、workflow defaultを`contents: read`へ縮小。write / OIDC / attestation権限を必要jobだけへ付与し、tag qualityへRust fmt / clippy / test、artifact + release metadata + checksum attestation、Dependabotを追加。protected PRと3-platform bundleで検証済み。`v0.5.0` releaseでは全assetのattestation生成・検証まで完了し、後続versionにも同じgateを要求する。
 - Rule ID: `REACT-SUPPLY-001`
 - Location:
   - `.github/workflows/ci.yml:19-21`
@@ -161,7 +161,7 @@
 - Impact: 大量command outputや高速deltaによりrenderer memory/CPUが増え、UI freezeまたはcrashが起こり得ます。
 - Recommended fix: Rust側にbounded channelを置き、deltaを `(generation, threadId, turnId, itemId)` 単位でcoalesceします。terminal/approval/error eventはdropしないpriority queueとし、line limitも実測に基づいて引き下げを検討します。
 - Mitigation already present: protocol / diagnostic frame length limit、Rust-side bounded delta batching、frontend frame batchingとhard limit、state event/detail truncation。
-- Confidence: Medium-High on Windows。両queueの100,000 delta stress testと3分間のpackaged Channel / WebView試験は通過しました。native macOSと強制crash時の同等試験は未実施です。
+- Confidence: Medium-High on Windows。両queueの100,000 delta stress testと3分間のpackaged Channel / WebView試験は通過しました。repository ownerからmacOS実機Pass報告はありますが、package hash・機種・OS・項目別証拠と強制crash時の同等試験は未確認です。
 
 ## Informational / residual risks
 
@@ -241,7 +241,7 @@
 - sourceとlocal buildを対象としたstatic / dependency reviewです。第三者penetration testや形式検証ではありません。
 - 実際の悪意あるWebView payload、Codex prompt injection、sandbox escapeは実行していません。
 - descendant process終了はWindows Job Objectの実process treeで再現し、Unix同等testをnative macOS CIへ追加しました。ただし多段・長時間の実Codex commandを使うpackaged app試験の代替ではありません。
-- event floodはRust / renderer両queueで100,000 delta、Windows packaged Tauri / WebViewで3分間のstreamを再現しました。native macOSでの同等試験は未実施です。
+- event floodはRust / renderer両queueで100,000 delta、Windows packaged Tauri / WebViewで3分間のstreamを再現しました。macOS実機はowner-reported Passですが、同等負荷の項目別証拠は未記録です。
 - release executableの基本起動・終了smoke testと隔離packaged testの正常終了は通過しましたが、強制crash時のprocess-tree回収試験の代替ではありません。
 - OSV/RustSec照合は監査時点の公開databaseに依存し、未知脆弱性を否定するものではありません。
 - OS WebView2、Codex CLI、OpenAI serviceそのものの脆弱性は対象外です。

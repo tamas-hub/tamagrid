@@ -8,7 +8,7 @@ Run and supervise up to four local Codex App Server threads in one desktop cockp
 
 > TamaGrid is an independent open-source project and is not affiliated with or endorsed by OpenAI.
 
-> **Project status:** Public Preview. The latest published release is `v0.5.0`; `main` is preparing an unpublished `v0.6.0` release candidate. Preview binaries are distributed through GitHub Releases only after the documented manual release gate. Windows builds are unsigned and macOS builds are not Developer ID notarized.
+> **Project status:** Public Preview. The current release line is `v0.6.x`. Preview binaries are distributed through GitHub Releases only after the documented manual release gate. Windows builds are unsigned and macOS builds are not Developer ID notarized.
 
 [View release status](../../releases)
 
@@ -16,7 +16,7 @@ Run and supervise up to four local Codex App Server threads in one desktop cockp
 
 ## Download
 
-GitHubの手動公開ゲートを通過したPublic Preview artifactは [Releases](../../releases) から取得できます。`v0.5.0`では次のartifactを対象とします。
+GitHubの手動公開ゲートを通過したPublic Preview artifactは [Releases](../../releases) から取得できます。`v0.6.0`では次のartifactを対象とします。
 
 - Windows `TamaGrid_*_x64-setup.exe` — 通常の対話型installer（推奨）
 - Windows `TamaGrid_*_x64_en-US.msi` — MSIを必要とする環境向け
@@ -27,8 +27,8 @@ Windows版はAuthenticode未署名のため、Microsoft Defender SmartScreenが�
 PowerShellでchecksumと署名状態を確認できます。
 
 ```powershell
-Get-FileHash -LiteralPath .\TamaGrid_0.5.0_x64-setup.exe -Algorithm SHA256
-Get-AuthenticodeSignature -LiteralPath .\TamaGrid_0.5.0_x64-setup.exe
+Get-FileHash -LiteralPath .\TamaGrid_0.6.0_x64-setup.exe -Algorithm SHA256
+Get-AuthenticodeSignature -LiteralPath .\TamaGrid_0.6.0_x64-setup.exe
 ```
 
 checksumが `SHA256SUMS.txt` と一致しない場合は実行しないでください。tagged buildはGitHub Artifact Attestationも生成するため、GitHub CLIが利用できる場合は `gh attestation verify <artifact> --repo tamas-hub/tamagrid` でbuild provenanceを追加確認できます。これはOSのcode signingを置き換えるものではありません。

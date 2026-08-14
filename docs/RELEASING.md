@@ -7,13 +7,13 @@ TamaGridのGitHub Releaseは、未署名artifactを誤って正式版として�
 ## Repository metadata
 
 - Name: `tamagrid`
-- Planned URL: `https://github.com/tamas-hub/tamagrid`
-- Description: `Local-first multi-task desktop workspace for Codex App Server.`
+- URL: `https://github.com/tamas-hub/tamagrid`
+- Description: `Run and supervise up to four local Codex App Server threads in one desktop cockpit.`
 - Status: Public Preview
 - License: MIT
-- Suggested topics: `codex`, `codex-app-server`, `tauri`, `rust`, `react`, `typescript`, `desktop-app`, `developer-tools`, `windows`, `macos`
+- Topics: `codex`, `codex-app-server`, `desktop-app`, `developer-tools`, `local-first`, `macos`, `multi-agent`, `react`, `rust`, `tauri`, `typescript`, `windows`
 
-`package.json` の `repository`、`homepage`、`bugs` は上記の公開予定URLへ揃えています。repository作成・push・Release公開はownerの明示的な実行判断後に行います。
+`package.json` の `repository`、`homepage`、`bugs` は上記の公開URLへ揃えています。tag・Release公開はownerの明示的な実行判断とmanual release gateの完了後に行います。
 
 ## Naming record
 
