@@ -114,6 +114,8 @@ TamaGridはChatGPT password、OpenAI API key、access tokenを入力・保存し
 
 Model名やreasoning levelはTamaGridへ固定していません。接続中はApp Serverの最新結果を正とし、offline cacheは明示された補助表示にだけ使います。
 
+Codex CLIを更新した開発環境では `pnpm check:app-server-schema` で、そのversion固有のstable JSON SchemaとTamaGridの使用method・wire値を照合できます。この検査は一時schemaだけを生成し、accountや会話を読みません。
+
 更新には3つの独立した層があります。
 
 1. **TamaGrid** — Cockpit UIとApp Server互換層
@@ -197,6 +199,7 @@ pnpm dev
 
 ```powershell
 pnpm check
+pnpm check:app-server-schema
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
@@ -226,6 +229,7 @@ WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local 
 - plugin、MCP elicitation、permissions grant、realtime、rollback等のexperimental APIは未実装
 - 信頼済みcode signing、notarization、自動updater、OS notificationは未実施（署名設定手順は同梱）
 - App Server schemaはCodex更新で変わり得るため、未知のnotificationは安全に無視し、互換性エラーはUIへ表示
+- 高頻度deltaはRust / rendererの両queueで上限を設け、100,000 deltaの自動stress testを通過。Tauri Channel / WebViewを含む長時間soak testは未実施
 
 ## Disclaimer
 

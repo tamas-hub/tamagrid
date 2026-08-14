@@ -101,6 +101,23 @@ mod process_tree {
     }
 }
 
+#[cfg(unix)]
+mod process_tree {
+    use std::io;
+
+    pub fn terminate_process_group(process_group_id: i32) -> io::Result<()> {
+        unsafe {
+            if libc::kill(-process_group_id, libc::SIGKILL) == -1 {
+                let error = io::Error::last_os_error();
+                if error.raw_os_error() != Some(libc::ESRCH) {
+                    return Err(error);
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_PROTOCOL_LINE: usize = 16 * 1024 * 1024;
 const MAX_DIAGNOSTIC_LINE: usize = 64 * 1024;
@@ -562,37 +579,14 @@ impl StdioTransport {
 
         let must_flush = {
             let buffer = self.delta_buffer.lock().await;
-            buffer.bytes.saturating_add(delta_bytes) > MAX_BUFFERED_DELTA_BYTES
-                || buffer.events.len() >= MAX_BUFFERED_DELTA_EVENTS
+            delta_buffer_should_flush(&buffer, delta_bytes)
         };
         if must_flush {
             self.flush_delta_buffer().await;
         }
 
         let mut buffer = self.delta_buffer.lock().await;
-        if let Some(last) = buffer.events.last_mut() {
-            if last.key == key
-                && last.bytes.saturating_add(delta_bytes) <= MAX_COALESCED_DELTA_BYTES
-                && append_message_delta(&mut last.message, &message)
-            {
-                last.bytes += delta_bytes;
-                buffer.bytes += delta_bytes;
-            } else {
-                buffer.events.push(BufferedDelta {
-                    key,
-                    message,
-                    bytes: delta_bytes,
-                });
-                buffer.bytes += delta_bytes;
-            }
-        } else {
-            buffer.events.push(BufferedDelta {
-                key,
-                message,
-                bytes: delta_bytes,
-            });
-            buffer.bytes += delta_bytes;
-        }
+        push_delta_event(&mut buffer, key, message, delta_bytes);
         drop(buffer);
     }
 
@@ -670,14 +664,8 @@ impl StdioTransport {
                 .map_err(|error| TransportError::Io(error.to_string()))?;
         }
         #[cfg(unix)]
-        unsafe {
-            if libc::kill(-self.process_group_id, libc::SIGKILL) == -1 {
-                let error = std::io::Error::last_os_error();
-                if error.raw_os_error() != Some(libc::ESRCH) {
-                    return Err(TransportError::Io(error.to_string()));
-                }
-            }
-        }
+        process_tree::terminate_process_group(self.process_group_id)
+            .map_err(|error| TransportError::Io(error.to_string()))?;
         Ok(())
     }
 }
@@ -756,16 +744,20 @@ impl AppServerTransport for StdioTransport {
                 Ok(Ok(_)) => Ok(()),
                 Ok(Err(error)) => Err(TransportError::Io(error.to_string())),
                 Err(_) => {
-                    child
+                    let kill_result = child
                         .kill()
                         .await
-                        .map_err(|error| TransportError::Io(error.to_string()))?;
-                    let _ = child.wait().await;
-                    Ok(())
+                        .map_err(|error| TransportError::Io(error.to_string()));
+                    if kill_result.is_ok() {
+                        let _ = child.wait().await;
+                    }
+                    kill_result
                 }
             },
             Err(error) => Err(TransportError::Io(error.to_string())),
         };
+        // Always attempt the OS containment fallback, including the race where
+        // the direct child exits between the timeout and Child::kill().
         let tree_result = self.terminate_process_tree();
         result.and(tree_result)
     }
@@ -774,10 +766,32 @@ impl AppServerTransport for StdioTransport {
 #[cfg(unix)]
 impl Drop for StdioTransport {
     fn drop(&mut self) {
-        unsafe {
-            libc::kill(-self.process_group_id, libc::SIGKILL);
+        let _ = process_tree::terminate_process_group(self.process_group_id);
+    }
+}
+
+fn delta_buffer_should_flush(buffer: &DeltaBuffer, incoming_bytes: usize) -> bool {
+    buffer.bytes.saturating_add(incoming_bytes) > MAX_BUFFERED_DELTA_BYTES
+        || buffer.events.len() >= MAX_BUFFERED_DELTA_EVENTS
+}
+
+fn push_delta_event(buffer: &mut DeltaBuffer, key: String, message: Value, delta_bytes: usize) {
+    if let Some(last) = buffer.events.last_mut() {
+        if last.key == key
+            && last.bytes.saturating_add(delta_bytes) <= MAX_COALESCED_DELTA_BYTES
+            && append_message_delta(&mut last.message, &message)
+        {
+            last.bytes += delta_bytes;
+            buffer.bytes += delta_bytes;
+            return;
         }
     }
+    buffer.events.push(BufferedDelta {
+        key,
+        message,
+        bytes: delta_bytes,
+    });
+    buffer.bytes += delta_bytes;
 }
 
 fn take_delta_events(buffer: &mut DeltaBuffer) -> Vec<Value> {
@@ -938,7 +952,11 @@ async fn read_frame<R: AsyncBufRead + Unpin>(
 
 #[cfg(test)]
 mod tests {
-    use super::{append_message_delta, delta_message_key, id_key, read_frame, redact_diagnostic};
+    use super::{
+        append_message_delta, delta_buffer_should_flush, delta_message_key, id_key,
+        push_delta_event, read_frame, redact_diagnostic, take_delta_events, DeltaBuffer,
+        MAX_BUFFERED_DELTA_BYTES, MAX_BUFFERED_DELTA_EVENTS, MAX_COALESCED_DELTA_BYTES,
+    };
     use serde_json::json;
 
     #[test]
@@ -1015,5 +1033,204 @@ mod tests {
             read_frame(&mut reader, 4).await.unwrap(),
             Some(b"next".to_vec())
         );
+    }
+
+    #[test]
+    fn hundred_thousand_delta_flood_stays_bounded_without_losing_payload() {
+        let mut buffer = DeltaBuffer::default();
+        let mut input_bytes = 0usize;
+        let mut delivered_bytes = 0usize;
+        let mut max_buffered_bytes = 0usize;
+        let mut max_buffered_events = 0usize;
+        let mut max_coalesced_bytes = 0usize;
+        let mut flushes = 0usize;
+
+        let flush = |buffer: &mut DeltaBuffer,
+                     delivered_bytes: &mut usize,
+                     max_coalesced_bytes: &mut usize,
+                     flushes: &mut usize| {
+            for message in take_delta_events(buffer) {
+                let bytes = message["params"]["delta"].as_str().unwrap().len();
+                *delivered_bytes += bytes;
+                *max_coalesced_bytes = (*max_coalesced_bytes).max(bytes);
+            }
+            *flushes += 1;
+        };
+
+        for index in 0..100_000usize {
+            let message = json!({
+                "method": "item/agentMessage/delta",
+                "params": {
+                    "threadId": "thread-1",
+                    "turnId": "turn-1",
+                    "itemId": "item-1",
+                    "delta": "delta-0123456789"
+                }
+            });
+            let delta_bytes = message["params"]["delta"].as_str().unwrap().len();
+            input_bytes += delta_bytes;
+            if delta_buffer_should_flush(&buffer, delta_bytes) {
+                flush(
+                    &mut buffer,
+                    &mut delivered_bytes,
+                    &mut max_coalesced_bytes,
+                    &mut flushes,
+                );
+            }
+            let key = delta_message_key(&message).unwrap();
+            push_delta_event(&mut buffer, key, message, delta_bytes);
+            max_buffered_bytes = max_buffered_bytes.max(buffer.bytes);
+            max_buffered_events = max_buffered_events.max(buffer.events.len());
+            assert_eq!(index + 1, input_bytes / delta_bytes);
+        }
+        flush(
+            &mut buffer,
+            &mut delivered_bytes,
+            &mut max_coalesced_bytes,
+            &mut flushes,
+        );
+
+        assert_eq!(delivered_bytes, input_bytes);
+        assert!(max_buffered_bytes <= MAX_BUFFERED_DELTA_BYTES);
+        assert!(max_buffered_events <= MAX_BUFFERED_DELTA_EVENTS);
+        assert!(max_coalesced_bytes <= MAX_COALESCED_DELTA_BYTES);
+        assert!(flushes > 1);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn windows_job_termination_kills_spawned_descendants() {
+        use std::{os::windows::process::CommandExt, time::Instant};
+        use tokio::{
+            io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+            process::Command,
+            time::{sleep, timeout, Duration},
+        };
+        use windows_sys::Win32::{
+            Foundation::{CloseHandle, WAIT_OBJECT_0},
+            System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE},
+        };
+
+        fn is_running(process_id: u32) -> bool {
+            unsafe {
+                let handle = OpenProcess(PROCESS_SYNCHRONIZE, 0, process_id);
+                if handle.is_null() {
+                    return false;
+                }
+                let state = WaitForSingleObject(handle, 0);
+                CloseHandle(handle);
+                state != WAIT_OBJECT_0
+            }
+        }
+
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let script = "$null=[Console]::In.ReadLine(); $child=Start-Process -FilePath \"$env:SystemRoot\\System32\\ping.exe\" -ArgumentList \"127.0.0.1\",\"-n\",\"30\" -PassThru; [Console]::Out.WriteLine($child.Id); [Console]::Out.Flush(); $child.WaitForExit()";
+        let mut command = Command::new("powershell.exe");
+        command
+            .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .kill_on_drop(true);
+        command.as_std_mut().creation_flags(CREATE_NO_WINDOW);
+        let mut parent = command.spawn().unwrap();
+        let parent_id = parent.id().unwrap();
+        let process_job = super::process_tree::ProcessJob::assign(parent_id).unwrap();
+        parent
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(b"start\n")
+            .await
+            .unwrap();
+
+        let mut output = BufReader::new(parent.stdout.take().unwrap());
+        let mut line = String::new();
+        timeout(Duration::from_secs(5), output.read_line(&mut line))
+            .await
+            .unwrap()
+            .unwrap();
+        let descendant_id: u32 = line.trim().parse().unwrap();
+        assert!(is_running(descendant_id));
+
+        process_job.terminate().unwrap();
+        timeout(Duration::from_secs(5), parent.wait())
+            .await
+            .unwrap()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while is_running(descendant_id) && Instant::now() < deadline {
+            sleep(Duration::from_millis(25)).await;
+        }
+        assert!(!is_running(descendant_id));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn unix_process_group_termination_kills_spawned_descendants() {
+        use std::{os::unix::process::CommandExt, time::Instant};
+        use tokio::{
+            io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+            process::Command,
+            time::{sleep, timeout, Duration},
+        };
+
+        fn is_running(process_id: i32) -> bool {
+            unsafe {
+                if libc::kill(process_id, 0) == 0 {
+                    return true;
+                }
+                std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
+            }
+        }
+
+        let mut command = Command::new("sh");
+        command
+            .args([
+                "-c",
+                "read gate; sleep 30 & child=$!; echo $child; wait $child",
+            ])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .kill_on_drop(true);
+        unsafe {
+            command.as_std_mut().pre_exec(|| {
+                if libc::setpgid(0, 0) == -1 {
+                    Err(std::io::Error::last_os_error())
+                } else {
+                    Ok(())
+                }
+            });
+        }
+        let mut parent = command.spawn().unwrap();
+        let process_group_id = parent.id().unwrap() as i32;
+        parent
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(b"start\n")
+            .await
+            .unwrap();
+
+        let mut output = BufReader::new(parent.stdout.take().unwrap());
+        let mut line = String::new();
+        timeout(Duration::from_secs(5), output.read_line(&mut line))
+            .await
+            .unwrap()
+            .unwrap();
+        let descendant_id: i32 = line.trim().parse().unwrap();
+        assert!(is_running(descendant_id));
+
+        super::process_tree::terminate_process_group(process_group_id).unwrap();
+        timeout(Duration::from_secs(5), parent.wait())
+            .await
+            .unwrap()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while is_running(descendant_id) && Instant::now() < deadline {
+            sleep(Duration::from_millis(25)).await;
+        }
+        assert!(!is_running(descendant_id));
     }
 }
