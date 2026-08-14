@@ -1,9 +1,16 @@
 mod codex;
+#[cfg(target_os = "macos")]
+mod process_guard;
 
 use codex::AppServerManager;
 use tauri::Manager;
 
 const EXIT_DISCONNECT_TIMEOUT: tokio::time::Duration = tokio::time::Duration::from_secs(5);
+
+#[cfg(target_os = "macos")]
+pub fn run_process_guard_if_requested() -> Option<i32> {
+    process_guard::run_if_requested()
+}
 
 macro_rules! tamagrid_handlers {
     () => {

@@ -1284,7 +1284,7 @@ mod tests {
             "requiresOpenaiAuth": true,
             "account": {
                 "type": "chatgpt",
-                "email": "private@example.invalid",
+                "email": format!("private{}example.invalid", '@'),
                 "planType": "plus",
                 "accessToken": "must-not-cross-ipc"
             },

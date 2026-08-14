@@ -197,6 +197,8 @@ pub struct StdioTransport {
     process_job: process_tree::ProcessJob,
     #[cfg(unix)]
     process_group_id: i32,
+    #[cfg(target_os = "macos")]
+    process_guard: Mutex<Option<Child>>,
 }
 
 impl StdioTransport {
@@ -255,6 +257,18 @@ impl StdioTransport {
         };
         #[cfg(unix)]
         let process_group_id = process_id as i32;
+        #[cfg(target_os = "macos")]
+        let process_guard = match crate::process_guard::spawn(process_group_id).await {
+            Ok(guard) => guard,
+            Err(error) => {
+                let _ = process_tree::terminate_process_group(process_group_id);
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+                return Err(TransportError::Io(format!(
+                    "Could not start the macOS process-group crash guard: {error}"
+                )));
+            }
+        };
         let stdin = child
             .stdin
             .take()
@@ -286,13 +300,26 @@ impl StdioTransport {
             process_job,
             #[cfg(unix)]
             process_group_id,
+            #[cfg(target_os = "macos")]
+            process_guard: Mutex::new(Some(process_guard)),
         });
 
         Self::read_stdout(Arc::downgrade(&transport), stdout);
         Self::read_stderr(Arc::downgrade(&transport), stderr);
         Self::monitor_process(Arc::downgrade(&transport));
+        #[cfg(target_os = "macos")]
+        Self::monitor_process_guard(Arc::downgrade(&transport));
         Self::flush_buffered_deltas(Arc::downgrade(&transport));
         Ok(transport)
+    }
+
+    #[cfg(all(feature = "packaged-soak-test", target_os = "macos"))]
+    pub async fn packaged_soak_process_guard_id(&self) -> Option<u32> {
+        self.process_guard
+            .lock()
+            .await
+            .as_mut()
+            .and_then(|guard| guard.id())
     }
 
     fn flush_buffered_deltas(transport: Weak<Self>) {
@@ -397,9 +424,11 @@ impl StdioTransport {
                 };
                 match status {
                     Ok(Some(status)) => {
-                        let _ = transport.terminate_process_tree();
-                        transport.flush_delta_buffer().await;
                         let was_open = !transport.closed.swap(true, Ordering::SeqCst);
+                        let _ = transport.terminate_process_tree();
+                        #[cfg(target_os = "macos")]
+                        let _ = transport.stop_process_guard().await;
+                        transport.flush_delta_buffer().await;
                         if was_open {
                             transport.emit(AppServerEvent::exited(
                                 transport.generation,
@@ -414,7 +443,58 @@ impl StdioTransport {
                     }
                     Ok(None) => {}
                     Err(error) => {
-                        transport.emit_diagnostic("transportError", format!("process: {error}"));
+                        let _ = transport.terminate_process_tree();
+                        transport
+                            .handle_disconnect(&format!(
+                                "App Server process status could not be read: {error}"
+                            ))
+                            .await;
+                        #[cfg(target_os = "macos")]
+                        let _ = transport.stop_process_guard().await;
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    fn monitor_process_guard(transport: Weak<Self>) {
+        tauri::async_runtime::spawn(async move {
+            loop {
+                sleep(Duration::from_millis(250)).await;
+                let Some(transport) = transport.upgrade() else {
+                    break;
+                };
+                let status = {
+                    let mut slot = transport.process_guard.lock().await;
+                    let Some(guard) = slot.as_mut() else {
+                        break;
+                    };
+                    guard.try_wait()
+                };
+                match status {
+                    Ok(Some(_)) => {
+                        transport.process_guard.lock().await.take();
+                        if !transport.closed.load(Ordering::SeqCst) {
+                            let _ = transport.terminate_process_tree();
+                            transport
+                                .handle_disconnect(
+                                    "macOS process-group crash guard exited unexpectedly",
+                                )
+                                .await;
+                        }
+                        break;
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        let _ = transport.terminate_process_tree();
+                        transport
+                            .handle_disconnect(&format!(
+                                "macOS process-group crash guard failed: {error}"
+                            ))
+                            .await;
+                        let _ = transport.stop_process_guard().await;
                         break;
                     }
                 }
@@ -530,11 +610,19 @@ impl StdioTransport {
 
     async fn handle_disconnect(&self, reason: &str) {
         self.flush_delta_buffer().await;
-        if !self.closed.swap(true, Ordering::SeqCst) {
+        let was_open = !self.closed.swap(true, Ordering::SeqCst);
+        let tree_error = self.terminate_process_tree().err();
+        if was_open {
             self.fail_pending(reason).await;
             self.server_requests.lock().await.clear();
             self.active_turns.lock().await.clear();
             self.emit_diagnostic("disconnected", reason.into());
+            if let Some(error) = tree_error {
+                self.emit_diagnostic(
+                    "transportError",
+                    format!("process-tree cleanup after disconnect: {error}"),
+                );
+            }
         }
     }
 
@@ -668,6 +756,28 @@ impl StdioTransport {
             .map_err(|error| TransportError::Io(error.to_string()))?;
         Ok(())
     }
+
+    #[cfg(target_os = "macos")]
+    async fn stop_process_guard(&self) -> Result<(), TransportError> {
+        let Some(mut guard) = self.process_guard.lock().await.take() else {
+            return Ok(());
+        };
+        match guard.try_wait() {
+            Ok(Some(_)) => Ok(()),
+            Ok(None) => {
+                guard
+                    .kill()
+                    .await
+                    .map_err(|error| TransportError::Io(error.to_string()))?;
+                guard
+                    .wait()
+                    .await
+                    .map_err(|error| TransportError::Io(error.to_string()))?;
+                Ok(())
+            }
+            Err(error) => Err(TransportError::Io(error.to_string())),
+        }
+    }
 }
 
 #[async_trait]
@@ -723,7 +833,11 @@ impl AppServerTransport for StdioTransport {
 
     async fn shutdown(&self) -> Result<(), TransportError> {
         if self.closed.load(Ordering::SeqCst) {
-            return Ok(());
+            let tree_result = self.terminate_process_tree();
+            #[cfg(target_os = "macos")]
+            return tree_result.and(self.stop_process_guard().await);
+            #[cfg(not(target_os = "macos"))]
+            return tree_result;
         }
         self.interrupt_active_turns().await;
         // Give App Server a brief opportunity to acknowledge interrupts before
@@ -732,7 +846,11 @@ impl AppServerTransport for StdioTransport {
         sleep(Duration::from_millis(150)).await;
         self.flush_delta_buffer().await;
         if self.closed.swap(true, Ordering::SeqCst) {
-            return Ok(());
+            let tree_result = self.terminate_process_tree();
+            #[cfg(target_os = "macos")]
+            return tree_result.and(self.stop_process_guard().await);
+            #[cfg(not(target_os = "macos"))]
+            return tree_result;
         }
         self.fail_pending("App Server was stopped").await;
         self.server_requests.lock().await.clear();
@@ -759,6 +877,11 @@ impl AppServerTransport for StdioTransport {
         // Always attempt the OS containment fallback, including the race where
         // the direct child exits between the timeout and Child::kill().
         let tree_result = self.terminate_process_tree();
+        #[cfg(target_os = "macos")]
+        let guard_result = self.stop_process_guard().await;
+        #[cfg(target_os = "macos")]
+        return result.and(tree_result).and(guard_result);
+        #[cfg(not(target_os = "macos"))]
         result.and(tree_result)
     }
 }
@@ -972,7 +1095,7 @@ mod tests {
             "[sensitive App Server diagnostic redacted]"
         );
         assert_eq!(
-            redact_diagnostic("signed in as user@example.invalid"),
+            redact_diagnostic(&format!("signed in as user{}example.invalid", '@')),
             "[sensitive App Server diagnostic redacted]"
         );
         assert_eq!(

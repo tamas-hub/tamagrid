@@ -1,6 +1,6 @@
 # TamaGrid public release checklist
 
-Updated: 2026-08-14
+Updated: 2026-08-15
 
 This checklist separates completed source/repository work, published Public Preview releases, and remaining validation evidence. The public source repository and immutable releases are available on GitHub.
 
@@ -15,6 +15,7 @@ This checklist separates completed source/repository work, published Public Prev
 - [x] Dangerous Codex authority is native-confirmed per turn and not persisted
 - [x] Command/file approvals fail closed when reviewable details are missing
 - [x] Windows Job Object and Unix process-group containment implemented
+- [x] Add a macOS-only independent `kqueue` guard so an abruptly terminated TamaGrid process cannot orphan its App Server process group
 - [x] Window geometry and maximized/fullscreen state persist in Rust app config without a WebView capability
 - [x] Opener plugin and unused capability removed
 - [x] npm, Cargo, and GitHub Actions Dependabot configuration present
@@ -109,7 +110,8 @@ This checklist separates completed source/repository work, published Public Prev
 ## Post-`v0.6.0` main hardening
 
 - [x] Add a test-only fixture that starts through the production `StdioTransport` and creates a real descendant only after Windows Job Object assignment
-- [x] Force-terminate the isolated packaged Tauri app and verify the fixture parent and descendant both exit within five seconds; all three 2026-08-15 Windows runs recovered both within 627 ms with zero residual fixture or TamaGrid processes
+- [x] Force-terminate the isolated packaged Tauri app and verify the fixture parent and descendant both exit within five seconds; all four 2026-08-15 Windows runs recovered both within 695 ms with zero residual fixture or TamaGrid processes
 - [x] Rebuild the normal production binary without the test feature and confirm that the test command, environment-variable prefix, fixture name, and start-gate method have zero binary marker matches
-- [ ] Run an equivalent packaged forced-crash recovery test on native macOS. The existing native process-group termination unit test and owner-reported app Pass do not substitute for that evidence
+- [x] Extend the same packaged forced-crash runner to macOS Apple Silicon and Intel without adding the fixture or test IPC to production builds
+- [ ] Run the equivalent packaged forced-crash recovery test on native macOS Apple Silicon and Intel and record the exact workflow evidence. The existing process-group termination unit test and owner-reported app Pass do not substitute for that result
 - This hardening is after the immutable `v0.6.0` tag and is not present in its published assets. It becomes release evidence only after a later reviewed tag/build gate

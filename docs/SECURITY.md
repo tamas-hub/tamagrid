@@ -20,7 +20,7 @@ TamaGridのWebViewは信頼済みUIではありますが、security boundaryと�
 - Windows custom pathはnative `.exe` の絶対pathに限定
 - shell、`cmd /c`、PowerShell wrapperを使わず、argvはTamaGridが固定する `app-server` だけ
 - stdin / stdout / stderrを分離し、stdoutだけをprotocolとしてparse
-- Windowsはkill-on-close Job Object、Unixは専用process groupへcontain
+- Windowsはkill-on-close Job Objectへcontain。macOSは専用process groupへcontainし、TamaGrid本体の強制終了を独立`kqueue` guardが検知してgroupを終了
 - 終了時はactive turnをbest-effort interruptし、stdin close、3秒以内のwait、process-tree killをfallbackにする
 
 native pickerで選択したfile自体の安全性はTamaGridだけでは証明できません。公式または信頼できる配布元のCodex executableだけを選択してください。
@@ -88,6 +88,6 @@ Tauri windowはlocal bundleだけを読み込み、Content Security Policyでdef
 - ユーザーが内容を確認してapprovalしたcommandやfile change
 - Authenticode未署名 / Developer ID未notarized preview binaryに対するOS警告
 - Tauri transitive dependencyに残るunmaintained Unicode crate群（既知vulnerabilityは別途継続監視）
-- Tauri Channel自体の内部実装はTamaGridからhard-boundできない。送信前delta bufferとWebView受信queueはbounded/coalesced化し、両層で100,000 deltaのpayload保持・上限試験を通過。Windows packaged Tauri / WebViewでも3分間・9,000 delta・2,304,000 bytesを欠落0で完走。後続`main`の隔離強制crash試験3回ではproductionと同じJob Object内のfixture親・孫processをすべて627 ms以内で回収、残留0を確認。macOS実機はrepository ownerがPass報告したが、package hash・機種・OS・項目別証拠とpackaged強制crash時の同等確認は継続課題
+- Tauri Channel自体の内部実装はTamaGridからhard-boundできない。送信前delta bufferとWebView受信queueはbounded/coalesced化し、両層で100,000 deltaのpayload保持・上限試験を通過。Windows packaged Tauri / WebViewでも3分間・9,000 delta・2,304,000 bytesを欠落0で完走。後続`main`の隔離強制crash試験4回ではproductionと同じJob Object内のfixture親・孫processをすべて695 ms以内で回収、残留0を確認。macOSにも独立crash guardと同じpackaged回帰試験を追加したが、package hash・機種・OS・項目別の手動証拠とnative workflow結果は別途確認する
 
 SmartScreenやGatekeeperを無効化せず、release origin、SHA-256、GitHub attestationを確認してください。Artifact AttestationはOS code signingの代替ではありません。

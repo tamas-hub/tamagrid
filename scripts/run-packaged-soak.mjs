@@ -39,7 +39,7 @@ try {
       VITE_TAMAGRID_SOAK_MAX_FRAME_GAP_MS: String(options.maxFrameGapMs),
     });
 
-    if (process.platform === "win32" && !options.skipProcessTreeCrash) {
+    if (!options.skipProcessTreeCrash) {
       const fixtureBuildArguments = [
         "build",
         "--manifest-path",
@@ -83,14 +83,16 @@ try {
   process.stdout.write("Packaged Tauri Channel/WebView soak passed.\n");
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 
-  if (process.platform === "win32" && !options.skipProcessTreeCrash) {
+  if (!options.skipProcessTreeCrash) {
     const fixtureBinary = join(
       root,
       "src-tauri",
       "target",
       ...(options.target ? [options.target] : []),
       "release",
-      "tamagrid-process-tree-fixture.exe",
+      process.platform === "win32"
+        ? "tamagrid-process-tree-fixture.exe"
+        : "tamagrid-process-tree-fixture",
     );
     await access(fixtureBinary);
     const crashReport = await runProcessTreeCrashProbe(
@@ -103,10 +105,6 @@ try {
       "Packaged forced-crash process-tree recovery passed.\n",
     );
     process.stdout.write(`${JSON.stringify(crashReport, null, 2)}\n`);
-  } else if (process.platform === "darwin") {
-    process.stdout.write(
-      "Packaged forced-crash process-tree recovery is not yet enabled on macOS.\n",
-    );
   }
 } finally {
   await removeExactTemporaryDirectory(resultDirectory);
@@ -186,12 +184,14 @@ async function runProcessTreeCrashProbe(
   const startedAt = Date.now();
   try {
     fixtureReport = await waitForProcessTreeReport(reportPath, child, 60_000);
-    const { parentPid, descendantPid } = fixtureReport;
-    validateFixturePids(parentPid, descendantPid, child.pid);
+    const { parentPid, descendantPid, processGuardPid } = fixtureReport;
+    validateFixturePids(parentPid, descendantPid, processGuardPid, child.pid);
     fixturePidsValidated = true;
-    if (!isProcessRunning(parentPid) || !isProcessRunning(descendantPid)) {
+    const containedPids = [parentPid, descendantPid];
+    if (process.platform === "darwin") containedPids.push(processGuardPid);
+    if (containedPids.some((pid) => !isProcessRunning(pid))) {
       throw new Error(
-        "The process-tree fixture was not fully running before the crash",
+        "The process-tree containment processes were not fully running before the crash",
       );
     }
 
@@ -200,13 +200,14 @@ async function runProcessTreeCrashProbe(
       throw new Error("Could not force-terminate the packaged soak process");
     }
     await exit;
-    await waitForProcessesToExit([parentPid, descendantPid], 5_000);
+    await waitForProcessesToExit(containedPids, 5_000);
     probeCompleted = true;
     return {
       passed: true,
       appPid: child.pid,
       parentPid,
       descendantPid,
+      ...(process.platform === "darwin" ? { processGuardPid } : {}),
       recoveryMs: Date.now() - startedAt,
     };
   } finally {
@@ -218,6 +219,9 @@ async function runProcessTreeCrashProbe(
       for (const pid of [
         fixtureReport.parentPid,
         fixtureReport.descendantPid,
+        ...(process.platform === "darwin"
+          ? [fixtureReport.processGuardPid]
+          : []),
       ]) {
         if (Number.isSafeInteger(pid) && pid > 0 && isProcessRunning(pid)) {
           try {
@@ -252,21 +256,29 @@ async function waitForProcessTreeReport(path, child, timeoutMs) {
   );
 }
 
-function validateFixturePids(parentPid, descendantPid, appPid) {
+function validateFixturePids(
+  parentPid,
+  descendantPid,
+  processGuardPid,
+  appPid,
+) {
   for (const [name, value] of [
     ["parentPid", parentPid],
     ["descendantPid", descendantPid],
+    ...(process.platform === "darwin"
+      ? [["processGuardPid", processGuardPid]]
+      : []),
   ]) {
     if (!Number.isSafeInteger(value) || value <= 0) {
       throw new Error(`The process-tree report has an invalid ${name}`);
     }
   }
+  const reportedPids = [parentPid, descendantPid];
+  if (process.platform === "darwin") reportedPids.push(processGuardPid);
   if (
-    parentPid === descendantPid ||
-    parentPid === appPid ||
-    descendantPid === appPid ||
-    parentPid === process.pid ||
-    descendantPid === process.pid
+    new Set(reportedPids).size !== reportedPids.length ||
+    reportedPids.includes(appPid) ||
+    reportedPids.includes(process.pid)
   ) {
     throw new Error("The process-tree report contains overlapping PIDs");
   }

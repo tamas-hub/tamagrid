@@ -18,9 +18,11 @@
 
 ## Post-v0.6.0 main hardening update (2026-08-15)
 
-Windowsのtest-only packaged appから、productionと同じ `StdioTransport` / kill-on-close Job Objectでfixture親processを起動し、割当完了後に孫processを生成しました。外側のrunnerがTauri appだけを強制終了する試験を3回行い、fixture親・孫はすべて627 ms以内で両方終了、TamaGridを含む残留processは0でした。実Codex、account、credential、thread、利用枠には接続していません。
+Windowsのtest-only packaged appから、productionと同じ `StdioTransport` / kill-on-close Job Objectでfixture親processを起動し、割当完了後に孫processを生成しました。外側のrunnerがTauri appだけを強制終了する試験を4回行い、fixture親・孫はすべて695 ms以内で両方終了、TamaGridを含む残留processは0でした。実Codex、account、credential、thread、利用枠には接続していません。
 
-fixture binary、IPC state、環境変数は `packaged-soak-test` featureだけに存在します。通常production buildをfeatureなし・`VITE_TAMAGRID_SOAK=0`で再生成し、test command、fixture名、環境変数prefix、start-gate methodのbinary markerが各0件であることを確認しました。macOS packaged appを強制終了する同等試験と、実Codex commandを使う長時間・多段descendant試験は未実施です。この変更はimmutable `v0.6.0` assetには含まれず、後続release候補のhardeningです。
+fixture binary、IPC state、環境変数は `packaged-soak-test` featureだけに存在します。通常production buildをfeatureなし・`VITE_TAMAGRID_SOAK=0`で再生成し、test command、fixture名、環境変数prefix、start-gate methodのbinary markerが各0件であることを確認しました。
+
+macOS sourceには、TamaGrid親processを`kqueue`の`EVFILT_PROC / NOTE_EXIT`で監視する独立guardを追加しました。guardは同一app binaryの固定internal modeで、shellや任意commandを受け付けません。guard ready後だけtransportを公開し、親の強制終了時はApp Server専用process groupを終了します。guard自身の予期しない終了や監視errorでもApp Server groupを終了し、pending response、approval、active turnをdisconnect処理で破棄します。同じpackaged crash runnerをmacOS Apple Silicon / Intelへ拡張しましたが、native workflow結果は未確定です。実Codex commandを使う長時間・多段descendant試験は未実施で、この変更はimmutable `v0.6.0` assetには含まれません。
 
 ## 結論
 
@@ -107,7 +109,7 @@ fixture binary、IPC state、環境変数は `packaged-soak-test` featureだけ�
 ### TG-SEC-005 — App Serverの直接childだけをkillし、process treeをcontainしていない
 
 - Severity: **Medium**
-- Status: **Resolved with OS-native and Windows packaged crash coverage** — active turn notificationをtransportで追跡し、shutdown前にbest-effort interrupt。Windows kill-on-close Job ObjectとUnix process groupを追加し、stdin close / 3秒wait後にprocess treeを終了。Windowsではunit testに加え、実際のpackaged Tauri appを強制終了してfixture親・孫が残留しないことを外側から確認。Unix同等の正常終了testはnative macOS CIへ追加。
+- Status: **Resolved in source; Windows packaged coverage complete, macOS packaged validation pending** — active turn notificationをtransportで追跡し、shutdown前にbest-effort interrupt。Windows kill-on-close Job ObjectとmacOS process groupを追加し、stdin close / 3秒wait後にprocess treeを終了。Windowsではunit testに加え、実際のpackaged Tauri appを強制終了してfixture親・孫が残留しないことを外側から確認。macOSは親TamaGridの異常終了を監視する独立guardと同じpackaged testをsourceへ追加。
 - Rule ID: `TAURI-LIFECYCLE-001`
 - Location:
   - `src-tauri/src/codex/transport.rs:73-90`
@@ -117,9 +119,9 @@ fixture binary、IPC state、環境変数は `packaged-soak-test` featureだけ�
   - `scripts/run-packaged-soak.mjs`
 - Original evidence:正常終了はstdin closeと3秒wait、その後 `child.kill()` でした。Windows Job ObjectやmacOS process groupの設定はなく、終了時にactive turnを先にinterruptするmanager stateもありませんでした。
 - Impact: App Serverが起動したcommand/tool processが子孫として残る実装の場合、TamaGrid終了後も処理が続く可能性があります。利用者が「アプリを閉じたので停止した」と誤認し、file/network operationが継続するおそれがあります。
-- Recommended fix: active turnを追跡してclose前にbest-effort `turn/interrupt`、短いgrace、stdin close、wait、最後にprocess tree killの順にします。Windowsでは `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` のJob ObjectへApp Serverを割り当て、macOSでは専用process groupを管理します。[Microsoft Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
-- Remediation evidence: production transportはactive turn interrupt、stdin close、bounded waitの後にOS process treeを終了します。Windows runtime unit testは実descendantを使用し、追加のpackaged test 3回はTauri appを強制killした後に同じJob Object内のfixture親・孫をすべて627 ms以内で回収しました。test helperは通常production binaryに含まれません。
-- Confidence: High on Windows、Medium on macOS。Windowsは正常shutdown fallbackとpackaged app強制終了の両方を実processで確認。macOSはnative process-group termination unit testを通過していますが、packaged app強制crashは未検証です。
+- Recommended fix: active turnを追跡してclose前にbest-effort `turn/interrupt`、短いgrace、stdin close、wait、最後にprocess tree killの順にします。Windowsでは `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` のJob ObjectへApp Serverを割り当て、macOSでは専用process groupを管理します。[Microsoft Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects) / [Apple kqueue(2)](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/kevent.2.html) / [Apple kill(2)](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/kill.2.html)
+- Remediation evidence: production transportはactive turn interrupt、stdin close、bounded waitの後にOS process treeを終了します。Windows runtime unit testは実descendantを使用し、追加のpackaged test 4回はTauri appを強制killした後に同じJob Object内のfixture親・孫をすべて695 ms以内で回収しました。macOS guardはfixed internal argv、親PID一致、対象group leader、ready pipeを検証し、異常時はfail closedします。test helperは通常production binaryに含まれません。
+- Confidence: High on Windows、Medium on macOS（native workflow前）。Windowsは正常shutdown fallbackとpackaged app強制終了の両方を実processで確認。macOSはnative process-group termination unit testを通過し、packaged crash用sourceも追加しましたが、そのnative実行結果は未確認です。
 
 ### TG-SEC-006 — Release workflowがmutable action tagとworkflow-wide write tokenを使う
 
@@ -243,14 +245,14 @@ fixture binary、IPC state、環境変数は `packaged-soak-test` featureだけ�
 - Dependabot alert #1 (`GHSA-wrw7-89jp-8q8g`): locked target graphでWindows/macOS 3 targetから`glib 0.18.5`到達不能、unsupported Linuxのみ到達可能を確認し、理由付き`not_used`分類。open CodeQL / secret / Dependabot alertは各0。
 - Final `v0.5.0` release: 10 asset / zero-length 0、SHA-256 manifest 9/9、Artifact Attestation 10/10、archive integrity 6/6、Microsoft Defender **no threats found**、anonymous release page / Windows installer access **HTTP 200 / 206**。公開後のreleaseは`draft=false`、`prerelease=true`、`immutable=true`。
 - Local `v0.6.0` candidate packaged soak: Windowsで3分間・9,000 delta・2,304,000 bytes、sequence gap 0、最大frame gap 50 ms、最新行距離0 px、正常終了後のTamaGrid / direct WebView child残留0、test temporary directory残留0。Codex process・account・利用枠には接続していません。
-- Post-`v0.6.0` Windows packaged crash probe: 30秒WebView soakは1,500 delta・384,000 bytes、sequence gap 0、最大frame gap 33 ms、最新行距離0 px。安全側cleanup修正後を含む5秒再試験2回も各250 delta・64,000 bytes、sequence gap 0で通過。各run後に隔離Tauri appを強制終了し、Job Object内のfixture親・孫をすべて627 ms以内で回収、残留0。通常production binaryのtest marker 4種は各0件。
+- Post-`v0.6.0` Windows packaged crash probe: 30秒WebView soakは1,500 delta・384,000 bytes、sequence gap 0、最大frame gap 33 ms、最新行距離0 px。安全側cleanup修正後を含む5秒再試験3回も各250 delta・64,000 bytes、sequence gap 0で通過。各run後に隔離Tauri appを強制終了し、Job Object内のfixture親・孫をすべて695 ms以内で回収、残留0。通常production binaryのtest marker 5種は各0件。
 
 ## 限界
 
 - sourceとlocal buildを対象としたstatic / dependency reviewです。第三者penetration testや形式検証ではありません。
 - 実際の悪意あるWebView payload、Codex prompt injection、sandbox escapeは実行していません。
-- descendant process終了はWindows Job Objectのruntime unit testとpackaged app強制crashの両方で再現し、Unix正常終了の同等testをnative macOS CIへ追加しました。ただしmacOS packaged crashや、多段・長時間の実Codex commandを使う試験の代替ではありません。
+- descendant process終了はWindows Job Objectのruntime unit testとpackaged app強制crashの両方で再現し、macOSには正常終了test、独立crash guard、packaged crash runnerを追加しました。ただしnative workflow実行前であり、多段・長時間の実Codex commandを使う試験の代替でもありません。
 - event floodはRust / renderer両queueで100,000 delta、Windows packaged Tauri / WebViewで3分間のstreamを再現しました。macOS実機はowner-reported Passですが、同等負荷の項目別証拠は未記録です。
-- Windowsの隔離packaged強制crash試験は通過しましたが、fixtureによる決定的試験であり、実Codexが実行中のcommandを持つ状態の強制終了やmacOS同等試験は未実施です。
+- Windowsの隔離packaged強制crash試験は通過しましたが、fixtureによる決定的試験です。実Codexが実行中のcommandを持つ状態の強制終了は未実施で、macOS同等試験はnative workflowでの確定が必要です。
 - OSV/RustSec照合は監査時点の公開databaseに依存し、未知脆弱性を否定するものではありません。
 - OS WebView2、Codex CLI、OpenAI serviceそのものの脆弱性は対象外です。

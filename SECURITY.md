@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-TamaGrid `v0.5.0` is published as an immutable Public Preview prerelease. Security fixes are applied to `main`; support covers the latest published 0.5.x preview only. Windows artifacts are not Authenticode-signed, and macOS artifacts are not Developer ID signed or notarized. Verify the GitHub Release origin, `SHA256SUMS.txt`, and GitHub Artifact Attestation before installing.
+TamaGrid `v0.6.0` is published as an immutable Public Preview prerelease. Security fixes are applied to `main`; support covers the latest published 0.6.x preview only. Windows artifacts are not Authenticode-signed, and macOS artifacts are not Developer ID signed or notarized. Verify the GitHub Release origin, `SHA256SUMS.txt`, and GitHub Artifact Attestation before installing.
 
 ## Reporting a vulnerability
 

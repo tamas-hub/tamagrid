@@ -43,8 +43,18 @@ fn run_app_server_fixture() -> Result<(), String> {
         .lock()
         .read_line(&mut gate)
         .map_err(|error| format!("Could not read the fixture start gate: {error}"))?;
-    if gate.trim().is_empty() {
-        return Err("The process-tree fixture start gate was empty".into());
+    let gate: serde_json::Value = serde_json::from_str(&gate)
+        .map_err(|error| format!("Could not decode the fixture start gate: {error}"))?;
+    if gate.get("method").and_then(serde_json::Value::as_str)
+        != Some("tamagrid/processTreeCrashProbe")
+    {
+        return Err("The process-tree fixture received an unexpected start gate".into());
+    }
+    let process_guard_pid = gate
+        .pointer("/params/processGuardPid")
+        .and_then(serde_json::Value::as_u64);
+    if process_guard_pid.is_some_and(|process_id| process_id > u32::MAX as u64) {
+        return Err("The process-tree fixture guard pid is invalid".into());
     }
 
     let executable = env::current_exe()
@@ -61,6 +71,7 @@ fn run_app_server_fixture() -> Result<(), String> {
     let report = serde_json::to_vec_pretty(&json!({
         "parentPid": std::process::id(),
         "descendantPid": descendant.id(),
+        "processGuardPid": process_guard_pid,
     }))
     .map_err(|error| format!("Could not encode the process-tree report: {error}"))?;
     let mut report_file = OpenOptions::new()

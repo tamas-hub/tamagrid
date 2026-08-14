@@ -168,7 +168,7 @@ TamaGridとCodexは別々に更新します。Codexを更新したあとTamaGrid
 - stderrをprotocol stdoutと分離し、credential、email、user directoryらしいdiagnosticをredact
 - JSONL frame上限、request timeout、exact request-ID correlation、process generationでmalformed / stale eventを隔離
 - 高頻度deltaはRust側で20ms単位にcoalesceし、1 MiB / 256 eventのhard boundを設け、terminal / approval前に順序を保ってflush。全event送信も直列化
-- Windows Job Object / Unix process group、active turnのbest-effort interrupt、stdin close、bounded waitで子process treeを終了
+- Windowsはkill-on-close Job Object、macOSは専用process groupと独立した`kqueue` crash guardを使い、active turnのbest-effort interrupt、stdin close、bounded waitと組み合わせて子process treeを終了
 - restrictive Content Security Policy、remote transportなし、独自credential保管なし
 - GitHub noreplyのrepository-local identity、全送信ref / annotated tagを検査するtracked pre-push hook、必須CI、全branchのverified-signature rulesetでcommit metadataの再混入を防止
 
@@ -241,7 +241,7 @@ WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local 
 - plugin、MCP elicitation、permissions grant、realtime、rollback等のexperimental APIは未実装
 - 信頼済みcode signing、notarization、自動updater、OS notificationは未実施（署名設定手順は同梱）
 - App Server schemaはCodex更新で変わり得るため、未知のnotificationは安全に無視し、互換性エラーはUIへ表示
-- 高頻度deltaはRust / rendererの両queueで上限を設け、100,000 deltaの自動stress testを通過。Windowsのpackaged Tauri / WebViewでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 msで完走。後続`main`では隔離packaged appを強制終了する試験を3回行い、productionと同じJob Object内のfixture親・孫processをすべて627 ms以内で回収、残留0を確認。macOS実機での同等負荷・強制crash試験は未実施
+- 高頻度deltaはRust / rendererの両queueで上限を設け、100,000 deltaの自動stress testを通過。Windowsのpackaged Tauri / WebViewでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 msで完走。後続`main`では隔離packaged appを強制終了する試験を4回行い、productionと同じJob Object内のfixture親・孫processをすべて695 ms以内で回収、残留0を確認。macOS Apple Silicon / Intelも同じ強制終了回帰試験の対象へ追加し、native workflow結果をrelease evidenceとして別途記録する
 
 ## Disclaimer
 

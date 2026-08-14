@@ -7,11 +7,14 @@ TamaGridの利用者に影響する変更をこのファイルへ記録します
 ### Security
 
 - Windowsの隔離packaged appを強制終了し、productionと同じJob Objectに収容したfixture親子が5秒以内に両方終了する自動回帰試験を追加
+- macOSではTamaGrid本体と独立した固定用途のprocess-group guardが親process終了を`kqueue`で監視し、本体が強制終了した場合もApp Serverの専用process groupを回収
+- 同じpackaged強制終了試験をmacOS Apple Silicon / Intelでも実行するようBundle smokeを拡張
 - 強制終了試験のhelper、IPC、環境変数は`packaged-soak-test` featureだけに限定し、配布buildには含めない
 
 ### Validation
 
-- Windows packaged appの強制終了試験を3回実行し、fixture親・孫processをすべて627 ms以内で回収、残留0を確認
+- Windows packaged appの強制終了試験を4回実行し、fixture親・孫processをすべて695 ms以内で回収、残留0を確認
+- Windows上でfrontend 46 tests、Rust 15 tests、全feature Clippyを再実行してpass。macOS固有guardとpackaged crash probeはnative CI / Bundle smokeで検証する
 - 通常のproduction buildを再生成し、強制終了試験のcommand、環境変数、helper名が本体binaryに含まれないことを確認
 
 ## [0.6.0] - 2026-08-14
