@@ -27,7 +27,7 @@
 
 - [ ] TamaGridがcrashせず起動し、初期表示または保存済みEN / JP設定が正しく反映される
 - [ ] Aurora / Dark / Light / Greenの各themeで主要text、select、focus outlineを読める
-- [ ] 85% / 100% / 150% / 200%でheader、usage、Pane、composer、Settingsに横方向の欠落がない
+- [ ] 90% / 100% / 150% / 170% / 180% / 200%でheader、usage、Pane、composer、Settingsに横方向の欠落がなく、増減操作が10%刻みで動く
 - [ ] 2列 / 2×2 / 横4列 / 縦4段を切り替え、Paneをdrag-and-dropとkeyboardの両方で並べ替えられる
 - [ ] Settingsが十分な幅で開き、Enter送信 / Ctrl・Cmd+Enter送信を切り替えられる
 - [ ] 入力欄が最大10行まで拡張し、送信後に初期高へ戻る

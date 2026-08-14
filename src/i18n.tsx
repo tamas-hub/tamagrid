@@ -4,6 +4,9 @@ export type AppLanguage = "ja" | "en";
 
 const ja = {
   "common.close": "閉じる",
+  "window.minimize": "最小化",
+  "window.maximizeRestore": "最大化・元に戻す",
+  "window.close": "ウィンドウを閉じる",
   "common.refresh": "更新",
   "common.unknown": "不明",
   "common.offline": "オフライン",
@@ -163,6 +166,7 @@ const ja = {
   "settings.testing": "確認中…",
   "settings.testConnection": "接続確認",
   "settings.disconnect": "切断",
+  "settings.status": "アプリと接続の状態",
   "settings.appServer": "App Server",
   "settings.authentication": "認証",
   "auth.signInRequired": "サインインが必要",
@@ -177,7 +181,7 @@ const ja = {
   "settings.accessibility": "アクセシビリティ",
   "settings.fontTitle": "文字サイズ",
   "settings.fontHelp":
-    "85%〜200%で調整できます。設定はこの端末に保存されます。",
+    "90%〜200%を10%刻みで調整できます。設定はこの端末に保存されます。",
   "settings.sendModeTitle": "メッセージ送信キー",
   "settings.enterToSend": "Enterで送信",
   "settings.shiftEnterNewline": "Shift + Enterで改行",
@@ -220,6 +224,9 @@ export type TranslationKey = keyof typeof ja;
 
 const en: Record<TranslationKey, string> = {
   "common.close": "Close",
+  "window.minimize": "Minimize",
+  "window.maximizeRestore": "Maximize or restore",
+  "window.close": "Close window",
   "common.refresh": "Refresh",
   "common.unknown": "Unknown",
   "common.offline": "Offline",
@@ -380,6 +387,7 @@ const en: Record<TranslationKey, string> = {
   "settings.testing": "Testing…",
   "settings.testConnection": "Test connection",
   "settings.disconnect": "Disconnect",
+  "settings.status": "Application and connection status",
   "settings.appServer": "App Server",
   "settings.authentication": "Authentication",
   "auth.signInRequired": "Sign-in required",
@@ -394,7 +402,7 @@ const en: Record<TranslationKey, string> = {
   "settings.accessibility": "ACCESSIBILITY",
   "settings.fontTitle": "Font size",
   "settings.fontHelp":
-    "Adjust from 85% to 200%. This setting is saved on this device.",
+    "Adjust from 90% to 200% in 10% steps. This setting is saved on this device.",
   "settings.sendModeTitle": "Message send shortcut",
   "settings.enterToSend": "Enter to send",
   "settings.shiftEnterNewline": "Shift + Enter for a new line",

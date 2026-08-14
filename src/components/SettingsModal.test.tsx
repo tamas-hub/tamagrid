@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
+import packageMetadata from "../../package.json";
 import { I18nProvider, type AppLanguage } from "../i18n";
 import { SettingsModal } from "./index";
 import type { ComposerSendMode } from "./types";
@@ -8,6 +9,7 @@ import type { ComposerSendMode } from "./types";
 function LanguageHarness() {
   const [language, setLanguage] = useState<AppLanguage>("en");
   const [sendMode, setSendMode] = useState<ComposerSendMode>("modifier-enter");
+  const [fontScale, setFontScale] = useState(1);
   return (
     <I18nProvider language={language}>
       <SettingsModal
@@ -15,6 +17,7 @@ function LanguageHarness() {
         codexPath=""
         language={language}
         sendMode={sendMode}
+        fontScale={fontScale}
         onClose={() => undefined}
         onChooseExecutable={() => undefined}
         onAutoDetect={() => undefined}
@@ -22,6 +25,7 @@ function LanguageHarness() {
         onRefreshModels={() => undefined}
         onLanguageChange={setLanguage}
         onSendModeChange={setSendMode}
+        onFontScaleChange={setFontScale}
       />
     </I18nProvider>
   );
@@ -32,6 +36,14 @@ describe("SettingsModal language", () => {
     render(<LanguageHarness />);
 
     expect(screen.getByRole("heading", { name: "Settings" })).toBeVisible();
+    expect(screen.getByText(packageMetadata.version)).toBeVisible();
+    const statusRail = screen.getByLabelText(
+      "Application and connection status",
+    );
+    expect(statusRail).toHaveClass("connection-details");
+    expect(
+      screen.getByRole("radiogroup", { name: "Display language" }),
+    ).toHaveClass("connection-language-options");
     expect(
       screen.getByRole("button", { name: "EN — English" }),
     ).toHaveAttribute("aria-pressed", "true");
@@ -40,11 +52,10 @@ describe("SettingsModal language", () => {
     fireEvent.click(screen.getByRole("button", { name: "EN — English" }));
     expect(screen.getByRole("heading", { name: "Settings" })).toBeVisible();
     expect(
-      screen.getByRole("heading", { name: "Display language" }),
-    ).toBeVisible();
-    expect(
-      screen.getByText(/Applied to interface text and date formatting/),
-    ).toBeVisible();
+      screen.queryByRole("heading", { name: "Display language" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Increase font size" }));
+    expect(screen.getByText("110%")).toBeVisible();
     const enterMode = screen.getByRole("button", {
       name: "Enter to send",
     });

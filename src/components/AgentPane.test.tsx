@@ -249,7 +249,7 @@ describe("AgentPane", () => {
     expect(onSend).toHaveBeenLastCalledWith("修飾キーで送信");
   });
 
-  it("keeps controls beside the composer and grows to ten lines before scrolling", () => {
+  it("places controls below a three-line composer and grows to ten lines before scrolling", () => {
     const onSend = vi.fn();
     render(
       <AgentPane
@@ -267,8 +267,18 @@ describe("AgentPane", () => {
 
     const input = screen.getByLabelText("メッセージ") as HTMLTextAreaElement;
     const composer = input.closest(".composer");
-    expect(composer).toContainElement(screen.getByLabelText("モデル"));
-    expect(composer).toContainElement(screen.getByLabelText("推論レベル"));
+    const model = screen.getByLabelText("モデル");
+    const reasoning = screen.getByLabelText("推論レベル");
+    expect(input.rows).toBe(3);
+    expect(composer).toContainElement(model);
+    expect(composer).toContainElement(reasoning);
+    expect(
+      input.compareDocumentPosition(model) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(
+      input.compareDocumentPosition(reasoning) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
     expect(composer).toContainElement(
       screen.getByRole("button", { name: "Codex設定" }),
     );
@@ -292,6 +302,7 @@ describe("AgentPane", () => {
     fireEvent.click(screen.getByRole("button", { name: "送信" }));
     expect(onSend).toHaveBeenCalledOnce();
     expect(input).toHaveValue("");
+    expect(Number.parseFloat(input.style.height)).toBeGreaterThanOrEqual(54);
     expect(Number.parseFloat(input.style.height)).toBeLessThan(cappedHeight);
     expect(input.style.overflowY).toBe("hidden");
   });
