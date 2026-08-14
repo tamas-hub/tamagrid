@@ -61,7 +61,7 @@ This checklist separates completed source/repository work, the published Public 
 - [x] Perform manual Windows installer and UI smoke tests on an installed build
 - [ ] Perform native macOS launch, history-resume, picker, approval, and shutdown checks using [`docs/MACOS_MANUAL_TEST.md`](docs/MACOS_MANUAL_TEST.md) (both native architecture builds already pass)
 - [x] Run and inspect the updated three-platform Bundle smoke from the `v0.6.0` candidate; Windows x64, macOS arm64, and macOS x64 all passed the 30-second packaged Tauri / WebView Channel gate in [run 31777776881](https://github.com/tamas-hub/tamagrid/actions/runs/31777776881)
-- [ ] Rebuild the exact merged `main` candidate and complete Windows clean-install, `v0.5.0` upgrade, launch, and uninstall smoke checks before tagging `v0.6.0`
+- [x] Rebuild exact merged `main` commit `4d2706b4a0a9d261f9b459805c08c2875d1650c3` and complete Windows clean-install, published `v0.5.0` upgrade, launch, settings/history preservation, uninstall, reinstall, and final shutdown checks before tagging `v0.6.0`
 - [x] Push `v0.5.0` from protected `main` only after explicit owner authorization
 - [x] Verify every draft-release hash and `gh attestation verify` result
 - [x] Confirm `RELEASE_NOTES.md`, `THIRD_PARTY_NOTICES.md`, and `tamagrid-js.cdx.json` are attached and covered by `SHA256SUMS.txt`
