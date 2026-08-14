@@ -1146,7 +1146,10 @@ mod tests {
 
         let mut output = BufReader::new(parent.stdout.take().unwrap());
         let mut line = String::new();
-        timeout(Duration::from_secs(5), output.read_line(&mut line))
+        // Fresh GitHub-hosted Windows runners can spend several seconds
+        // starting Windows PowerShell under Defender load. This timeout only
+        // covers fixture startup; the post-termination deadline stays strict.
+        timeout(Duration::from_secs(20), output.read_line(&mut line))
             .await
             .unwrap()
             .unwrap();
