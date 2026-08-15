@@ -79,6 +79,13 @@ const PULL_REQUEST_PREP_PROMPT: Record<AppLanguage, string> = {
   ja: "Pull Requestの準備をしてください。現在のGit branch、working tree、staged・unstaged・untrackedの差分を確認し、必要なテストを実行または提案したうえで、PRタイトルと本文の案を作成してください。commit、push、remote branch作成、gh pr createなど外部状態を変更する操作はまだ実行せず、準備結果を提示して私の明示的な確認を待ってください。",
   en: "Prepare a Pull Request draft. Inspect the current Git branch and all staged, unstaged, and untracked changes. Run or recommend the necessary tests, then draft a PR title and body. Do not commit, push, create a remote branch, run gh pr create, or make any other external change yet. Present the preparation results and wait for my explicit confirmation.",
 };
+
+function visiblePaneCount(layout: PaneLayout): number {
+  if (layout === "split-2") return 2;
+  if (layout === "columns-3") return 3;
+  return 4;
+}
+
 function App() {
   const adapterRef = useRef(new CodexAdapter(createCodexBridge()));
   const [panes, setPanes] = useState<PaneRuntimeState[]>(() =>
@@ -105,6 +112,7 @@ function App() {
   const [selectedPaneId, setSelectedPaneId] = useState(
     initialWorkspace.selectedPaneId,
   );
+  const selectedPaneIdRef = useRef(initialWorkspace.selectedPaneId);
   const [executablePath, setExecutablePath] = useState("");
   const executablePathRef = useRef(executablePath);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -122,6 +130,9 @@ function App() {
     useState<PaneRuntimeState["events"]>();
   const [historyDetailLoading, setHistoryDetailLoading] = useState(false);
   const historyDetailRequestRef = useRef(0);
+  const historyContinuePendingRef = useRef(false);
+  const [historyResumingPaneId, setHistoryResumingPaneId] = useState<string>();
+  const paneSessionEpochRef = useRef(new Map<string, number>());
   const [connection, setConnection] = useState<ConnectionState>({
     connected: false,
     connecting: false,
@@ -148,6 +159,10 @@ function App() {
   useEffect(() => {
     panesRef.current = panes;
   }, [panes]);
+  const selectPane = useCallback((paneId: string) => {
+    selectedPaneIdRef.current = paneId;
+    setSelectedPaneId(paneId);
+  }, []);
   useEffect(() => {
     modelsRef.current = models;
   }, [models]);
@@ -337,6 +352,7 @@ function App() {
                 ...pane,
                 ...patch,
                 threadId,
+                sessionActive: true,
                 loaded: true,
                 status: "Idle" as const,
                 error: undefined,
@@ -355,7 +371,13 @@ function App() {
 
   const resumePane = useCallback(
     async (pane: PaneRuntimeState) => {
-      if (!pane.threadId || pane.unavailableModel) return;
+      if (
+        pane.sessionActive === false ||
+        !pane.threadId ||
+        pane.unavailableModel
+      )
+        return;
+      const epoch = paneSessionEpochRef.current.get(pane.id) ?? 0;
       const adapter = adapterRef.current;
       try {
         const resumed = await adapter.resumeThread(pane.threadId, {
@@ -370,6 +392,7 @@ function App() {
         } catch {
           // A restored thread remains usable even if old history cannot be rendered.
         }
+        if ((paneSessionEpochRef.current.get(pane.id) ?? 0) !== epoch) return;
         attachThread(
           pane.id,
           resumed.thread.id,
@@ -377,6 +400,7 @@ function App() {
           title ? { title } : {},
         );
       } catch (error) {
+        if ((paneSessionEpochRef.current.get(pane.id) ?? 0) !== epoch) return;
         const detail = errorMessage(error);
         setPanes((current) =>
           current.map((candidate) =>
@@ -430,7 +454,11 @@ function App() {
         version: info.version,
         authStatus: authStatusFromAccount(info.account),
       });
-      await Promise.allSettled(reconciled.map(resumePane));
+      const selected = selectedPaneIdRef.current;
+      const restoreOrder = [...reconciled].sort((left, right) =>
+        left.id === selected ? -1 : right.id === selected ? 1 : 0,
+      );
+      await Promise.allSettled(restoreOrder.map(resumePane));
     } catch (error) {
       const detail = errorMessage(error);
       setConnection((current) => ({
@@ -578,6 +606,7 @@ function App() {
 
   const continueHistoryThread = useCallback(
     async (thread: CodexThreadSummary) => {
+      if (historyContinuePendingRef.current) return;
       const assigned = panesRef.current.find(
         (pane) => pane.threadId === thread.id,
       );
@@ -592,13 +621,20 @@ function App() {
             return next;
           });
         }
-        setSelectedPaneId(assigned.id);
-        if (panesRef.current.indexOf(assigned) > 1) setLayout("grid-4");
+        selectPane(assigned.id);
+        const assignedIndex = panesRef.current.indexOf(assigned);
+        setLayout((current) =>
+          assignedIndex < visiblePaneCount(current)
+            ? current
+            : assignedIndex === 2
+              ? "columns-3"
+              : "grid-4",
+        );
         setHistoryOpen(false);
         return;
       }
       const pane = panesRef.current.find(
-        (candidate) => candidate.id === selectedPaneId,
+        (candidate) => candidate.id === selectedPaneIdRef.current,
       );
       if (!pane || pane.status === "Running" || pane.status === "Approval") {
         setHistoryError(
@@ -607,6 +643,9 @@ function App() {
         return;
       }
       const workingDirectory = thread.cwd || pane.workingDirectory;
+      const epoch = paneSessionEpochRef.current.get(pane.id) ?? 0;
+      historyContinuePendingRef.current = true;
+      setHistoryResumingPaneId(pane.id);
       setHistoryDetailLoading(true);
       setHistoryError(undefined);
       try {
@@ -615,25 +654,37 @@ function App() {
           thread.id,
           threadOptionsFromPane(configuredPane),
         );
+        if ((paneSessionEpochRef.current.get(pane.id) ?? 0) !== epoch) return;
         let events =
           expandedThreadId === thread.id ? expandedEvents : undefined;
         if (!events) {
-          events = eventsFromThreadRead(
-            await adapterRef.current.readThread(resumed.thread.id),
-          );
+          try {
+            events = eventsFromThreadRead(
+              await adapterRef.current.readThread(resumed.thread.id),
+            );
+          } catch {
+            // The resumed session remains usable even when a large history
+            // cannot be rendered before the read timeout.
+          }
         }
+        if ((paneSessionEpochRef.current.get(pane.id) ?? 0) !== epoch) return;
         attachThread(pane.id, resumed.thread.id, events, {
           workingDirectory,
           title: threadTitle(thread),
         });
+        selectPane(pane.id);
         setHistoryOpen(false);
       } catch (error) {
         setHistoryError(`Thread resume failed: ${errorMessage(error)}`);
       } finally {
+        historyContinuePendingRef.current = false;
+        setHistoryResumingPaneId((current) =>
+          current === pane.id ? undefined : current,
+        );
         setHistoryDetailLoading(false);
       }
     },
-    [attachThread, expandedEvents, expandedThreadId, selectedPaneId],
+    [attachThread, expandedEvents, expandedThreadId, selectPane],
   );
 
   useEffect(() => {
@@ -662,6 +713,7 @@ function App() {
       sandboxMode: pane.sandboxMode,
       personality: pane.personality,
       reasoningSummary: pane.reasoningSummary,
+      sessionActive: pane.sessionActive !== false,
     })),
   );
   useEffect(() => {
@@ -703,11 +755,15 @@ function App() {
         event.preventDefault();
         const pane = panesRef.current[Number(event.key) - 1];
         if (pane) {
-          setSelectedPaneId(pane.id);
-          if (Number(event.key) > 2)
-            setLayout((current) =>
-              current === "split-2" ? "grid-4" : current,
-            );
+          const paneIndex = Number(event.key) - 1;
+          selectPane(pane.id);
+          setLayout((current) =>
+            paneIndex < visiblePaneCount(current)
+              ? current
+              : paneIndex === 2
+                ? "columns-3"
+                : "grid-4",
+          );
         }
       } else if (event.key === "+" || event.key === "=") {
         event.preventDefault();
@@ -726,7 +782,7 @@ function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [selectPane]);
 
   const ensureThread = useCallback(
     async (pane: PaneRuntimeState): Promise<string> => {
@@ -775,6 +831,7 @@ function App() {
       );
       if (
         !pane ||
+        pane.sessionActive === false ||
         pane.status === "Running" ||
         pane.status === "Approval" ||
         pane.unavailableModel
@@ -1131,6 +1188,73 @@ function App() {
     [],
   );
 
+  const clearPaneSession = useCallback(
+    (paneId: string) => {
+      const pane = panesRef.current.find(
+        (candidate) => candidate.id === paneId,
+      );
+      if (
+        !pane ||
+        pane.status === "Running" ||
+        pane.status === "Approval" ||
+        historyResumingPaneId === paneId
+      )
+        return;
+
+      const threadId = pane.threadId;
+      paneSessionEpochRef.current.set(
+        paneId,
+        (paneSessionEpochRef.current.get(paneId) ?? 0) + 1,
+      );
+      if (threadId) orphanMessagesRef.current.delete(threadId);
+      setPanes((current) => {
+        const next = current.map((candidate) =>
+          candidate.id === paneId
+            ? {
+                ...candidate,
+                sessionActive: false,
+                threadId: undefined,
+                loaded: false,
+                activeTurnId: undefined,
+                activeTurnKind: undefined,
+                approval: undefined,
+                title: "",
+                status: "Idle" as const,
+                error: undefined,
+                events: [],
+              }
+            : candidate,
+        );
+        panesRef.current = next;
+        return next;
+      });
+      selectPane(paneId);
+
+      if (threadId && connectionRef.current.connected) {
+        void adapterRef.current
+          .unsubscribeThread(threadId)
+          .catch(() => undefined);
+      }
+    },
+    [historyResumingPaneId, selectPane],
+  );
+
+  const startPaneSession = useCallback(
+    (paneId: string) => {
+      paneSessionEpochRef.current.set(
+        paneId,
+        (paneSessionEpochRef.current.get(paneId) ?? 0) + 1,
+      );
+      updatePane(paneId, {
+        sessionActive: true,
+        status: "Idle",
+        error: undefined,
+      });
+      selectPane(paneId);
+    },
+    [selectPane, updatePane],
+  );
+
   const renamePane = useCallback(
     async (paneId: string, requestedTitle: string) => {
       const title = requestedTitle.trim();
@@ -1169,14 +1293,13 @@ function App() {
   const changeLayout = useCallback(
     (nextLayout: PaneLayout) => {
       setLayout(nextLayout);
-      if (nextLayout === "split-2") {
-        const selectedIndex = panesRef.current.findIndex(
-          (pane) => pane.id === selectedPaneId,
-        );
-        if (selectedIndex > 1) setSelectedPaneId(panesRef.current[0].id);
-      }
+      const selectedIndex = panesRef.current.findIndex(
+        (pane) => pane.id === selectedPaneIdRef.current,
+      );
+      if (selectedIndex >= visiblePaneCount(nextLayout))
+        selectPane(panesRef.current[0].id);
     },
-    [selectedPaneId],
+    [selectPane],
   );
 
   const movePane = useCallback((sourceId: string, targetId: string) => {
@@ -1242,7 +1365,7 @@ function App() {
     [models],
   );
 
-  const visiblePanes = layout === "split-2" ? panes.slice(0, 2) : panes;
+  const visiblePanes = panes.slice(0, visiblePaneCount(layout));
   const selectedPane =
     panes.find((pane) => pane.id === selectedPaneId) ?? panes[0];
   const displayPaneTitle = (pane: PaneRuntimeState) =>
@@ -1254,6 +1377,14 @@ function App() {
       )
       .map((pane) => [pane.threadId, displayPaneTitle(pane)]),
   );
+  const historyTargetPanes = visiblePanes.map((pane, index) => ({
+    id: pane.id,
+    title: `${index + 1} · ${displayPaneTitle(pane)}`,
+    busy:
+      pane.status === "Running" ||
+      pane.status === "Approval" ||
+      historyResumingPaneId === pane.id,
+  }));
 
   return (
     <I18nProvider language={language}>
@@ -1315,7 +1446,7 @@ function App() {
                 sendMode={sendMode}
                 models={modelOptions}
                 selected={selectedPaneId === pane.id}
-                onSelect={() => setSelectedPaneId(pane.id)}
+                onSelect={() => selectPane(pane.id)}
                 dragging={draggingPaneId === pane.id}
                 dragOver={
                   dragOverPaneId === pane.id && draggingPaneId !== pane.id
@@ -1338,7 +1469,9 @@ function App() {
                   setDragOverPaneId(undefined);
                 }}
                 onMove={(direction) => movePaneByOffset(pane.id, direction)}
-                disabled={connection.connecting}
+                disabled={
+                  connection.connecting || historyResumingPaneId === pane.id
+                }
                 runDisabled={!connection.connected}
                 onWorkingDirectoryChange={(workingDirectory) =>
                   updatePane(pane.id, { workingDirectory })
@@ -1383,7 +1516,9 @@ function App() {
                     unavailableModel: undefined,
                   })
                 }
-                onChooseModel={() => setSelectedPaneId(pane.id)}
+                onChooseModel={() => selectPane(pane.id)}
+                onClearSession={() => clearPaneSession(pane.id)}
+                onStartSession={() => startPaneSession(pane.id)}
                 onSend={(message) => void sendTurn(pane.id, message)}
                 onSteer={(message) => void steerTurn(pane.id, message)}
                 steerDisabled={pane.activeTurnKind === "review"}
@@ -1409,22 +1544,15 @@ function App() {
           nextCursor={historyCursor}
           expandedThreadId={expandedThreadId}
           expandedEvents={expandedEvents}
-          selectedPaneTitle={
-            selectedPane
-              ? displayPaneTitle(selectedPane)
-              : translate(language, "pane.newChat")
-          }
-          canContinue={
-            Boolean(selectedPane) &&
-            selectedPane.status !== "Running" &&
-            selectedPane.status !== "Approval"
-          }
+          selectedPaneId={selectedPane?.id ?? visiblePanes[0]?.id ?? ""}
+          targetPanes={historyTargetPanes}
           assignedPanes={assignedPanes}
           onClose={() => setHistoryOpen(false)}
           onSearch={(query) => void loadHistory(true, query)}
           onRefresh={() => void loadHistory(true)}
           onLoadMore={() => void loadHistory(false)}
           onToggleThread={(threadId) => void toggleHistoryThread(threadId)}
+          onSelectPane={selectPane}
           onContinue={(thread) => void continueHistoryThread(thread)}
         />
         <SettingsModal

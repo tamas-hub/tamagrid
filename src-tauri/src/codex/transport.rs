@@ -119,12 +119,21 @@ mod process_tree {
 }
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const THREAD_RESTORE_TIMEOUT: Duration = Duration::from_secs(90);
 const MAX_PROTOCOL_LINE: usize = 16 * 1024 * 1024;
 const MAX_DIAGNOSTIC_LINE: usize = 64 * 1024;
 const DELTA_FLUSH_INTERVAL: Duration = Duration::from_millis(20);
 const MAX_BUFFERED_DELTA_BYTES: usize = 1024 * 1024;
 const MAX_BUFFERED_DELTA_EVENTS: usize = 256;
 const MAX_COALESCED_DELTA_BYTES: usize = 128 * 1024;
+
+fn request_timeout(method: &str) -> Duration {
+    match method {
+        "thread/resume" | "thread/read" => THREAD_RESTORE_TIMEOUT,
+        _ => REQUEST_TIMEOUT,
+    }
+}
+
 const SUPPORTED_SERVER_REQUESTS: &[&str] = &[
     "item/commandExecution/requestApproval",
     "item/fileChange/requestApproval",
@@ -795,7 +804,7 @@ impl AppServerTransport for StdioTransport {
             return Err(error);
         }
 
-        match timeout(REQUEST_TIMEOUT, receiver).await {
+        match timeout(request_timeout(method), receiver).await {
             Ok(Ok(response)) => response,
             Ok(Err(_)) => Err(TransportError::Disconnected),
             Err(_) => {
@@ -1077,8 +1086,9 @@ async fn read_frame<R: AsyncBufRead + Unpin>(
 mod tests {
     use super::{
         append_message_delta, delta_buffer_should_flush, delta_message_key, id_key,
-        push_delta_event, read_frame, redact_diagnostic, take_delta_events, DeltaBuffer,
-        MAX_BUFFERED_DELTA_BYTES, MAX_BUFFERED_DELTA_EVENTS, MAX_COALESCED_DELTA_BYTES,
+        push_delta_event, read_frame, redact_diagnostic, request_timeout, take_delta_events,
+        DeltaBuffer, MAX_BUFFERED_DELTA_BYTES, MAX_BUFFERED_DELTA_EVENTS,
+        MAX_COALESCED_DELTA_BYTES, REQUEST_TIMEOUT, THREAD_RESTORE_TIMEOUT,
     };
     use serde_json::json;
 
@@ -1086,6 +1096,13 @@ mod tests {
     fn ids_keep_number_and_string_namespaces_separate() {
         assert_eq!(id_key(&json!(7)).unwrap(), "n:7");
         assert_eq!(id_key(&json!("7")).unwrap(), "s:7");
+    }
+
+    #[test]
+    fn history_restore_requests_get_a_longer_bounded_timeout() {
+        assert_eq!(request_timeout("thread/resume"), THREAD_RESTORE_TIMEOUT);
+        assert_eq!(request_timeout("thread/read"), THREAD_RESTORE_TIMEOUT);
+        assert_eq!(request_timeout("turn/start"), REQUEST_TIMEOUT);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 [package]
 name = "tamagrid"
-version = "0.6.0"
+version = "0.7.0"
 description = "Local-first multi-task desktop workspace for Codex App Server"
 authors = ["TamaGrid contributors"]
 edition = "2021"

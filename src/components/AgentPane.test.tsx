@@ -282,6 +282,13 @@ describe("AgentPane", () => {
     expect(composer).toContainElement(
       screen.getByRole("button", { name: "Codex設定" }),
     );
+    expect(composer?.querySelector(".composer-footer")).toBeNull();
+    expect(composer?.querySelector(".composer-shortcut")).toHaveTextContent(
+      "Ctrl/Cmd + Enterで送信",
+    );
+    const sendButton = screen.getByRole("button", { name: "送信" });
+    expect(sendButton).not.toHaveTextContent("↑");
+    expect(sendButton.querySelector("svg")).not.toBeNull();
 
     let scrollHeight = 420;
     Object.defineProperty(input, "scrollHeight", {
@@ -335,5 +342,51 @@ describe("AgentPane", () => {
     await waitFor(() =>
       expect(onTitleChange).toHaveBeenCalledWith("新しいタイトル"),
     );
+  });
+
+  it("clears a pane into a recoverable plus state and starts it again", () => {
+    const onClearSession = vi.fn();
+    const onStartSession = vi.fn();
+    const activePane = {
+      id: "pane-a",
+      threadId: "thread-a",
+      sessionActive: true,
+      title: "Retained in history",
+      status: "Idle" as const,
+      workingDirectory: "C:\\repo",
+      events: [],
+    };
+    const { rerender } = render(
+      <AgentPane
+        pane={activePane}
+        onClearSession={onClearSession}
+        onStartSession={onStartSession}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Retained in historyのセッションをクリア",
+      }),
+    );
+    expect(onClearSession).toHaveBeenCalledOnce();
+
+    rerender(
+      <AgentPane
+        pane={{
+          ...activePane,
+          threadId: undefined,
+          sessionActive: false,
+          title: "新しいチャット",
+        }}
+        onClearSession={onClearSession}
+        onStartSession={onStartSession}
+      />,
+    );
+    expect(screen.queryByLabelText("メッセージ")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "新しいセッションを開始" }),
+    );
+    expect(onStartSession).toHaveBeenCalledOnce();
   });
 });

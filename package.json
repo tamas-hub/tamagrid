@@ -1,7 +1,7 @@
 {
   "name": "tamagrid",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Local-first multi-task desktop workspace for Codex App Server",
   "author": "TamaGrid contributors",
   "license": "MIT",

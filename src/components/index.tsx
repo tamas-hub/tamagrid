@@ -34,6 +34,32 @@ const glyph: Record<string, string> = {
 const COMPOSER_MIN_LINES = 3;
 const COMPOSER_MAX_LINES = 10;
 
+function SendIcon() {
+  return (
+    <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m3 3 3 9-3 9 19-9Z" />
+      <path d="M6 12h16" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v8M8 12h8" />
+    </svg>
+  );
+}
+
+function ClearSessionIcon() {
+  return (
+    <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
 function fitComposerHeight(textarea: HTMLTextAreaElement, hasContent: boolean) {
   const style = window.getComputedStyle(textarea);
   const lineHeight = Number.parseFloat(style.lineHeight) || 18;
@@ -186,6 +212,7 @@ export function Header({
                 aria-label={t("header.paneLayout")}
               >
                 <option value="split-2">{t("layout.split2")}</option>
+                <option value="columns-3">{t("layout.columns3")}</option>
                 <option value="grid-4">{t("layout.grid4")}</option>
                 <option value="columns-4">{t("layout.columns4")}</option>
                 <option value="rows-4">{t("layout.rows4")}</option>
@@ -318,7 +345,7 @@ export function StatusBadge({
       aria-label={t("status.label", { status: label })}
     >
       <b>{glyph[status]}</b>
-      {label}
+      <span className="status-label">{label}</span>
     </span>
   );
 }
@@ -356,6 +383,8 @@ export function AgentPane({
   onDrop,
   onDragEnd,
   onMove,
+  onClearSession,
+  onStartSession,
 }: AgentPaneProps) {
   const { language, t } = useI18n();
   const [message, setMessage] = useState("");
@@ -373,6 +402,8 @@ export function AgentPane({
   const composerInput = useRef<HTMLTextAreaElement>(null);
   const timeline = useRef<HTMLDivElement>(null);
   const timelineStickToBottom = useRef(true);
+  const sessionActive = pane.sessionActive !== false;
+  const previousSessionActive = useRef(sessionActive);
   const selectedModel = models.find((model) => model.id === pane.model);
   useEffect(() => {
     if (!editingTitle) setTitleDraft(titleValue ?? pane.title);
@@ -413,6 +444,16 @@ export function AgentPane({
     if (composerInput.current)
       fitComposerHeight(composerInput.current, Boolean(message));
   }, [message]);
+  useEffect(() => {
+    if (!sessionActive) {
+      setMessage("");
+      setControlPanel(null);
+      setEditingTitle(false);
+    } else if (!previousSessionActive.current) {
+      composerInput.current?.focus();
+    }
+    previousSessionActive.current = sessionActive;
+  }, [sessionActive]);
   const sendMessage = () => {
     if (!message.trim()) return;
     if (pane.status === "Running") {
@@ -541,7 +582,7 @@ export function AgentPane({
           ) : (
             <div className="pane-title-line">
               <h2 title={pane.title}>{pane.title}</h2>
-              {onTitleChange && (
+              {onTitleChange && sessionActive && (
                 <button
                   className="pane-title-edit"
                   type="button"
@@ -568,9 +609,29 @@ export function AgentPane({
             </small>
           )}
         </div>
-        <StatusBadge status={pane.status} />
+        <div className="pane-head-actions">
+          {sessionActive && onClearSession && (
+            <button
+              className="pane-session-clear"
+              type="button"
+              onClick={onClearSession}
+              disabled={
+                disabled ||
+                pane.status === "Running" ||
+                pane.status === "Approval"
+              }
+              aria-label={t("pane.clearSession", { title: pane.title })}
+              title={`${t("pane.clearSession", { title: pane.title })} — ${t("pane.clearSessionHelp")}`}
+            >
+              <ClearSessionIcon />
+            </button>
+          )}
+          <StatusBadge status={pane.status} />
+        </div>
       </div>
-      <div className="timeline" aria-live="polite" ref={timeline}>
+      {sessionActive ? (
+        <>
+          <div className="timeline" aria-live="polite" ref={timeline}>
         {pane.events.length === 0 ? (
           <div className="empty-state">{t("timeline.waiting")}</div>
         ) : (
@@ -817,7 +878,7 @@ export function AgentPane({
                 aria-label={t("composer.send")}
                 title={t("composer.send")}
               >
-                <span aria-hidden="true">↑</span>
+                <SendIcon />
               </button>
             )}
           </div>
@@ -888,6 +949,18 @@ export function AgentPane({
               <span>{t("workflow.title")}</span>
             </button>
           </div>
+          <span
+            className="composer-shortcut"
+            title={
+              sendMode === "enter"
+                ? t("composer.enterHint")
+                : t("composer.modifierHint")
+            }
+          >
+            {sendMode === "enter"
+              ? t("composer.enterHint")
+              : t("composer.modifierHint")}
+          </span>
         </div>
 
         {controlPanel === "codex" && (
@@ -1121,14 +1194,26 @@ export function AgentPane({
           </section>
         )}
 
-        <div className="composer-footer">
-          <span className="hint">
-            {sendMode === "enter"
-              ? t("composer.enterHint")
-              : t("composer.modifierHint")}
-          </span>
-        </div>
       </form>
+        </>
+      ) : (
+        <div className="pane-empty-session">
+          <button
+            className="pane-session-start"
+            type="button"
+            onClick={onStartSession}
+            aria-label={t("pane.startSession")}
+            disabled={disabled}
+          >
+            <PlusIcon />
+            <strong>{t("pane.startSession")}</strong>
+          </button>
+          <div>
+            <strong>{t("pane.emptySessionTitle")}</strong>
+            <p>{t("pane.emptySessionBody")}</p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -1156,18 +1241,23 @@ export function HistoryDrawer({
   nextCursor,
   expandedThreadId,
   expandedEvents,
-  selectedPaneTitle,
-  canContinue,
+  selectedPaneId,
+  targetPanes,
   assignedPanes = {},
   onClose,
   onSearch,
   onRefresh,
   onLoadMore,
   onToggleThread,
+  onSelectPane,
   onContinue,
 }: HistoryDrawerProps) {
   const { language, locale, t } = useI18n();
   const [query, setQuery] = useState("");
+  const selectedTarget =
+    targetPanes.find((pane) => pane.id === selectedPaneId) ?? targetPanes[0];
+  const selectedPaneTitle = selectedTarget?.title ?? t("pane.newChat");
+  const canContinue = Boolean(selectedTarget) && !selectedTarget.busy;
   if (!open) return null;
   return (
     <div
@@ -1228,10 +1318,22 @@ export function HistoryDrawer({
             ↻
           </button>
         </form>
-        <p className="history-target">
-          {t("history.target")}: <strong>{selectedPaneTitle}</strong>
-          {!canContinue && ` (${t("history.running")})`}
-        </p>
+        <label className="history-target">
+          <span>{t("history.target")}</span>
+          <select
+            value={selectedTarget?.id ?? ""}
+            onChange={(event) => onSelectPane(event.target.value)}
+            aria-label={t("history.targetLabel")}
+            disabled={detailLoading || targetPanes.length === 0}
+          >
+            {targetPanes.map((pane) => (
+              <option key={pane.id} value={pane.id}>
+                {pane.title}
+                {pane.busy ? ` (${t("history.running")})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
         {error && (
           <div className="error-box" role="alert">
             × {error}
@@ -1310,7 +1412,9 @@ export function HistoryDrawer({
                       type="button"
                       className="secondary compact"
                       onClick={() => onContinue(thread)}
-                      disabled={!assignedPane && !canContinue}
+                      disabled={
+                        !assignedPane && (!canContinue || detailLoading)
+                      }
                     >
                       {assignedPane
                         ? t("history.showPane", { pane: assignedPane })

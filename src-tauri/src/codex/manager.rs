@@ -223,6 +223,12 @@ pub struct ThreadReadParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ThreadUnsubscribeParams {
+    thread_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ThreadNameSetParams {
     thread_id: String,
     name: String,
@@ -464,6 +470,20 @@ pub async fn codex_thread_read(
         .request(
             "thread/read",
             json!({ "threadId": params.thread_id, "includeTurns": true }),
+        )
+        .await
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub async fn codex_thread_unsubscribe(
+    state: State<'_, AppServerManager>,
+    params: ThreadUnsubscribeParams,
+) -> Result<Value, String> {
+    validate_identifier("thread id", &params.thread_id)?;
+    state
+        .request(
+            "thread/unsubscribe",
+            json!({ "threadId": params.thread_id }),
         )
         .await
 }

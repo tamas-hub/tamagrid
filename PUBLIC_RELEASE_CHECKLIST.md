@@ -22,8 +22,10 @@ This checklist separates completed source/repository work, published Public Prev
 - [x] GitHub Actions use full commit SHAs and least-privilege job permissions
 - [x] Pull-request Dependency Review, scheduled RustSec audit, and manual three-platform bundle-smoke workflows present
 - [x] Draft-prerelease workflow includes checksums and GitHub Artifact Attestations
-- [x] Frontend lint, 46 tests, TypeScript, and production build pass
-- [x] Rust formatting, clippy with denied warnings, and 14 tests pass
+- [x] Frontend lint, 51 tests, TypeScript, and production build pass
+- [x] Rust formatting, clippy with denied warnings, and 15 tests pass
+- [x] History resume has an explicit visible-Pane target and thread lifecycle operations are serialized
+- [x] 3-column layout, per-Pane session clear, and empty-Pane start controls are present and covered by component/state tests
 - [x] Validate 100,000-delta floods in both Rust and renderer queues without payload loss or exceeding the configured bounds
 - [x] Verify Windows Job Object descendant termination at runtime and gate the equivalent Unix process-group test in native macOS CI
 - [x] Validate TamaGrid's stable App Server method, event, approval, and wire-value assumptions against the installed Codex version's generated JSON Schema
@@ -107,11 +109,24 @@ This checklist separates completed source/repository work, published Public Prev
 - Cargo.lock includes Tauri's Linux-only GTK `glib 0.18.5`; its unsoundness advisory is unreachable on all supported release targets and is classified `not_used`, but must be reassessed if Linux becomes supported.
 - The owner-authorized privacy rewrite replaced personal author/committer metadata across all nine historical `main` commits with GitHub noreply metadata while preserving the source tree and commit topology. Rewritten historical signatures are no longer valid, but required signed commits is restored for future `main` changes. GitHub email privacy, exposed-email push blocking, and the required CI metadata check prevent recurrence. Provider-managed pull-request/cache dereferencing remains tracked in [the privacy rewrite record](docs/PRIVACY_HISTORY_REWRITE_RECORD.md).
 
-## Post-`v0.6.0` main hardening
+## `v0.7.0` release closure
+
+- [x] Include the post-`v0.6.0` Windows/macOS abrupt-exit containment work
+- [x] Include explicit History targets, serialized thread restore, 3-column layout, Pane clear/start, and compact composer controls
+- [x] Align package, Cargo, Tauri, README, changelog, security policy, and release-note version metadata at `0.7.0`
+- [x] Run the 3-minute Windows packaged Tauri/WebView gate: 9,000 delta / 2,304,000 bytes, sequence gaps 0, maximum frame gap 33 ms, latest-row distance 0 px; forced-crash fixture recovery 642 ms with zero residue
+- [x] Build local `v0.7.0` NSIS/MSI candidates, read MSI product/version metadata, record SHA-256, confirm both are intentionally unsigned, and pass a remediation-disabled Microsoft Defender scan
+- [ ] Update Draft PR #27 with the exact reviewed candidate and pass every required check
+- [ ] Merge PR #27 through protected `main` without bypassing signed-commit or CI requirements
+- [ ] Create `v0.7.0` only from the exact protected-main merge and let the release workflow build a draft prerelease
+- [ ] Independently verify all release assets, checksums, attestations, versions, package structure, privacy, and malware scan
+- [ ] Publish the verified prerelease and confirm anonymous access, zero open PRs/issues, and repository security state
+
+## Post-`v0.6.0` hardening included in the candidate
 
 - [x] Add a test-only fixture that starts through the production `StdioTransport` and creates a real descendant only after Windows Job Object assignment
 - [x] Force-terminate the isolated packaged Tauri app and verify the fixture parent and descendant both exit within five seconds; all four 2026-08-15 Windows runs recovered both within 695 ms with zero residual fixture or TamaGrid processes
 - [x] Rebuild the normal production binary without the test feature and confirm that the test command, environment-variable prefix, fixture name, and start-gate method have zero binary marker matches
 - [x] Extend the same packaged forced-crash runner to macOS Apple Silicon and Intel without adding the fixture or test IPC to production builds
 - [x] Run the equivalent packaged forced-crash recovery test on native macOS Apple Silicon and Intel. [Bundle smoke 31847223651](https://github.com/tamas-hub/tamagrid/actions/runs/31847223651) used exact source commit `12e1b19802826c14c20b83392d601c65fb4719bb`; both jobs delivered 1,500 delta / 384,000 bytes with sequence gap 0 and latest-row distance 0 px, then removed the fixture parent, descendant, and guard in 2,794 ms (Apple Silicon) / 996 ms (Intel) with zero residue
-- This hardening is after the immutable `v0.6.0` tag and is not present in its published assets. It becomes release evidence only after a later reviewed tag/build gate
+- This hardening is after the immutable `v0.6.0` tag and is not present in its published assets. It is included in the reviewed `v0.7.0` candidate and becomes release evidence only after the tag/build gate succeeds

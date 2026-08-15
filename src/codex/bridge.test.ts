@@ -116,6 +116,23 @@ describe("Preview App Server integration", () => {
     ).toBe(true);
   });
 
+  it("unsubscribes a cleared preview pane without deleting its history", async () => {
+    const bridge = new PreviewCodexBridge();
+    await bridge.connect(() => undefined);
+    const list = (await bridge.request("thread/list", { limit: 1 })) as {
+      data: Array<{ id: string }>;
+    };
+    const threadId = list.data[0].id;
+
+    await expect(
+      bridge.request("thread/unsubscribe", { threadId }),
+    ).resolves.toEqual({ status: "unsubscribed" });
+    const after = (await bridge.request("thread/list", { limit: 25 })) as {
+      data: Array<{ id: string }>;
+    };
+    expect(after.data.some((thread) => thread.id === threadId)).toBe(true);
+  });
+
   it("renames a thread and emits the stable name update", async () => {
     const bridge = new PreviewCodexBridge();
     const events: AppServerEvent[] = [];

@@ -8,7 +8,7 @@ Run and supervise up to four local Codex App Server threads in one desktop cockp
 
 > TamaGrid is an independent open-source project and is not affiliated with or endorsed by OpenAI.
 
-> **Project status:** Public Preview. The current release line is `v0.6.x`. Preview binaries are distributed through GitHub Releases only after the documented manual release gate. Windows builds are unsigned and macOS builds are not Developer ID notarized.
+> **Project status:** Public Preview. The current release line is `v0.7.x`. Preview binaries are distributed through GitHub Releases only after the documented manual release gate. Windows builds are unsigned and macOS builds are not Developer ID notarized.
 
 [View release status](../../releases)
 
@@ -16,7 +16,7 @@ Run and supervise up to four local Codex App Server threads in one desktop cockp
 
 ## Download
 
-GitHubの手動公開ゲートを通過したPublic Preview artifactは [Releases](../../releases) から取得できます。`v0.6.0`では次のartifactを対象とします。
+GitHubの手動公開ゲートを通過したPublic Preview artifactは [Releases](../../releases) から取得できます。`v0.7.0`では次のartifactを対象とします。
 
 - Windows `TamaGrid_*_x64-setup.exe` — 通常の対話型installer（推奨）
 - Windows `TamaGrid_*_x64_en-US.msi` — MSIを必要とする環境向け
@@ -27,8 +27,8 @@ Windows版はAuthenticode未署名のため、Microsoft Defender SmartScreenが�
 PowerShellでchecksumと署名状態を確認できます。
 
 ```powershell
-Get-FileHash -LiteralPath .\TamaGrid_0.6.0_x64-setup.exe -Algorithm SHA256
-Get-AuthenticodeSignature -LiteralPath .\TamaGrid_0.6.0_x64-setup.exe
+Get-FileHash -LiteralPath .\TamaGrid_0.7.0_x64-setup.exe -Algorithm SHA256
+Get-AuthenticodeSignature -LiteralPath .\TamaGrid_0.7.0_x64-setup.exe
 ```
 
 checksumが `SHA256SUMS.txt` と一致しない場合は実行しないでください。tagged buildはGitHub Artifact Attestationも生成するため、GitHub CLIが利用できる場合は `gh attestation verify <artifact> --repo tamas-hub/tamagrid` でbuild provenanceを追加確認できます。これはOSのcode signingを置き換えるものではありません。
@@ -137,7 +137,7 @@ Codex CLIを更新した開発環境では `pnpm check:app-server-schema` で、
 
 ## Windows installation
 
-0.5.0はPublic Previewです。明示的にpushされたtagに対し、GitHub Actionsがunsigned NSIS / MSI installer、`SHA256SUMS.txt`、GitHub Artifact Attestationを含むdraft prereleaseを生成します。Release ownerがartifact、checksum、provenance、説明を確認したものだけを [GitHub Releases](../../releases) で公開します。
+TamaGridはPublic Previewです。明示的にpushされたtagに対し、GitHub Actionsがunsigned NSIS / MSI installer、`SHA256SUMS.txt`、GitHub Artifact Attestationを含むdraft prereleaseを生成します。Release ownerがartifact、checksum、provenance、説明を確認したものだけを [GitHub Releases](../../releases) で公開します。
 
 初回起動後にSettingsを開き、**Auto detect** または **Choose executable** でnative `codex.exe` を選び、**Test connection** を実行します。Microsoft Defender SmartScreenが未署名buildを警告する場合があります。入手元とchecksumを確認して判断してください。
 
@@ -233,7 +233,7 @@ WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local 
 
 ## Current scope and known limitations
 
-- 保存履歴はnon-archived threadを対象とし、削除・archive操作はUIから公開しない
+- 保存履歴はnon-archived threadを対象とし、任意の表示Paneへresume可能。Paneのsession clearはTamaGrid上の割り当てだけを解除し、Codex履歴自体は削除・archiveしない
 - command execution / file change approvalのみUI対応。未知のserver requestは自動承認せずunsupported errorを返す
 - Codexがtask中に生成するcommandは表示・承認・結果確認に対応。sandbox外で動く直接shell実行UIは安全上公開しない
 - PR準備はlocal差分の確認とtitle / body案まで。実際のcommit、push、remote branch、PR作成は未自動化
@@ -241,7 +241,7 @@ WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local 
 - plugin、MCP elicitation、permissions grant、realtime、rollback等のexperimental APIは未実装
 - 信頼済みcode signing、notarization、自動updater、OS notificationは未実施（署名設定手順は同梱）
 - App Server schemaはCodex更新で変わり得るため、未知のnotificationは安全に無視し、互換性エラーはUIへ表示
-- 高頻度deltaはRust / rendererの両queueで上限を設け、100,000 deltaの自動stress testを通過。Windowsのpackaged Tauri / WebViewでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 msで完走。後続sourceでは隔離packaged appを強制終了する試験をWindowsで4回行い、productionと同じJob Object内のfixture親・孫processをすべて695 ms以内で回収、残留0を確認。[native Bundle smoke 31847223651](https://github.com/tamas-hub/tamagrid/actions/runs/31847223651)ではmacOS Apple Silicon / Intelも1,500 delta・384,000 bytes、sequence gap 0、最新行距離0 pxで完走し、fixture親・孫・独立guardをそれぞれ2,794 ms / 996 msで回収、残留0を確認。このpost-`v0.6.0` hardeningはimmutableな公開済み`v0.6.0` assetには含まれない
+- 高頻度deltaはRust / rendererの両queueで上限を設け、100,000 deltaの自動stress testを通過。Windowsのpackaged Tauri / WebViewでは3分間・9,000 delta・2,304,000 bytesを欠落0、最大frame gap 50 msで完走。隔離packaged appの強制終了試験ではWindows Job Object内のfixture親・孫processをすべて695 ms以内で回収。[native Bundle smoke 31847223651](https://github.com/tamas-hub/tamagrid/actions/runs/31847223651)ではmacOS Apple Silicon / Intelも1,500 delta・384,000 bytes、sequence gap 0、最新行距離0 pxで完走し、fixture親・孫・独立guardをそれぞれ2,794 ms / 996 msで回収、残留0を確認
 
 ## Disclaimer
 

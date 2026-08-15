@@ -44,7 +44,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --features packaged-soak-test
 pnpm test:packaged-soak -- --duration-ms 180000
 cargo install cargo-audit --version 0.22.2 --locked
 cargo audit --file src-tauri/Cargo.lock --deny unsound --deny yanked --ignore RUSTSEC-2024-0429
-node scripts/verify-release-version.mjs v0.6.0
+node scripts/verify-release-version.mjs v0.7.0
 ```
 
 4. [SECURITY_REVIEW.md](../SECURITY_REVIEW.md) のopen findingとresidual riskを確認する。
@@ -56,8 +56,8 @@ node scripts/verify-release-version.mjs v0.6.0
 ## Create the draft prerelease
 
 ```powershell
-git tag v0.6.0
-git push origin v0.6.0
+git tag v0.7.0
+git push origin v0.7.0
 ```
 
 tag pushで `.github/workflows/release.yml` が、tag commitが`main`に含まれること、tag・package・Tauri・Cargoのversion一致、release notesの存在、frontend / Rust test、JavaScript / Rust dependency auditを先に検証します。その後Windows NSIS / MSI、macOS app / dmg、tagと同名の `RELEASE_NOTES.md`、`THIRD_PARTY_NOTICES.md`、production JavaScript dependencyのCycloneDX SBOM、`SHA256SUMS.txt` をdraft prereleaseへ追加します。checksums jobはドラフトからダウンロード可能な6パッケージを読み戻し、その実ファイルすべて（macOSの `.app.tar.gz` を含む）にGitHub Artifact Attestationを生成し、workflow内で全件の `gh attestation verify` を完了させてからrelease metadataを追加します。tagの作成とpushはrepository ownerの明示的な公開判断後に行ってください。
