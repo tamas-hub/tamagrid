@@ -116,11 +116,21 @@ This checklist separates completed source/repository work, published Public Prev
 - [x] Align package, Cargo, Tauri, README, changelog, security policy, and release-note version metadata at `0.7.0`
 - [x] Run the 3-minute Windows packaged Tauri/WebView gate: 9,000 delta / 2,304,000 bytes, sequence gaps 0, maximum frame gap 33 ms, latest-row distance 0 px; forced-crash fixture recovery 642 ms with zero residue
 - [x] Build local `v0.7.0` NSIS/MSI candidates, read MSI product/version metadata, record SHA-256, confirm both are intentionally unsigned, and pass a remediation-disabled Microsoft Defender scan
-- [ ] Update Draft PR #27 with the exact reviewed candidate and pass every required check
-- [ ] Merge PR #27 through protected `main` without bypassing signed-commit or CI requirements
-- [ ] Create `v0.7.0` only from the exact protected-main merge and let the release workflow build a draft prerelease
-- [ ] Independently verify all release assets, checksums, attestations, versions, package structure, privacy, and malware scan
-- [ ] Publish the verified prerelease and confirm anonymous access, zero open PRs/issues, and repository security state
+- [x] Update Draft PR #27 with the exact reviewed candidate and pass every required check
+- [x] Merge PR #27 through protected `main` without bypassing signed-commit or CI requirements
+- [x] Create `v0.7.0` only from the exact protected-main merge and let the release workflow build a draft prerelease
+- [x] Independently verify all release assets, checksums, attestations, versions, package structure, privacy, and malware scan
+- [x] Publish the verified prerelease and confirm anonymous access, zero open PRs/issues, and repository security state
+
+## Published `v0.7.0` evidence
+
+- Pull request: [#27](https://github.com/tamas-hub/tamagrid/pull/27), merged only after all nine required checks passed as GitHub-verified squash commit `d1682c9ca0c7f7fb38defaab270f53424b8a81ec`
+- Exact-main gates: [CI 31852986256](https://github.com/tamas-hub/tamagrid/actions/runs/31852986256), [CodeQL 31852986348](https://github.com/tamas-hub/tamagrid/actions/runs/31852986348), and [Security audit 31852986230](https://github.com/tamas-hub/tamagrid/actions/runs/31852986230) all succeeded
+- Native packaged gate: [Bundle smoke 31853599012](https://github.com/tamas-hub/tamagrid/actions/runs/31853599012) passed on Windows x64, macOS Apple Silicon, and macOS Intel from the exact merge. Every platform delivered 1,500 delta / 384,000 bytes with sequence gap 0 and latest-row distance 0 px, then recovered the forced-crash fixture tree with zero residue
+- Release workflow: [31854285261](https://github.com/tamas-hub/tamagrid/actions/runs/31854285261) passed the full quality gate, built all three targets, attached provenance, generated and checked `SHA256SUMS.txt`, and created the reviewed draft
+- Release: [TamaGrid v0.7.0 Public Preview](https://github.com/tamas-hub/tamagrid/releases/tag/v0.7.0), published at `2026-08-15T01:08:42Z` as an immutable prerelease with ten assets
+- Independent download verification matched all ten GitHub digests, all nine checksum-manifest entries, and all ten Artifact Attestations. MSI/app versions, arm64/x86_64 Mach-O headers, safe app archives, both DMG trailers, SBOM, tagged notes/notices, privacy patterns, and a remediation-disabled Microsoft Defender scan also passed
+- Anonymous HTTP returned 200 for the release page and all ten assets. Post-publication readback found the repository public on `main`, zero open pull requests/issues/security alerts, and the existing strict nine-check branch protection unchanged
 
 ## Post-`v0.6.0` hardening included in the candidate
 
