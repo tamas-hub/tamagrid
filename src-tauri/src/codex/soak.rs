@@ -339,8 +339,17 @@ async fn start_process_tree_crash_probe(
     let transport = StdioTransport::spawn(executable, SOAK_GENERATION, channel.clone())
         .await
         .map_err(|error| format!("Could not start the process-tree fixture: {error}"))?;
+    #[cfg(target_os = "macos")]
+    let gate = json!({
+        "processGuardPid": transport
+            .packaged_soak_process_guard_id()
+            .await
+            .ok_or_else(|| "The macOS process-group guard pid is unavailable".to_string())?
+    });
+    #[cfg(not(target_os = "macos"))]
+    let gate = json!({});
     if let Err(error) = transport
-        .notify("tamagrid/processTreeCrashProbe", json!({}))
+        .notify("tamagrid/processTreeCrashProbe", gate)
         .await
     {
         let _ = transport.shutdown().await;

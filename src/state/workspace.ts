@@ -39,7 +39,7 @@ export interface PaneRuntimeState extends Omit<AgentPaneData, "approval"> {
 }
 
 export interface PersistedWorkspace {
-  version: 6;
+  version: 7;
   selectedPaneId: string;
   fontScale: number;
   layout: PaneLayout;
@@ -50,6 +50,7 @@ export interface PersistedWorkspace {
     id: string;
     title: string;
     workingDirectory: string;
+    sessionActive?: boolean;
     threadId?: string;
     model?: string;
     reasoning?: string;
@@ -97,6 +98,7 @@ export function createDefaultPanes(): PaneRuntimeState[] {
 function createPane(id: string): PaneRuntimeState {
   return {
     id,
+    sessionActive: true,
     title: "",
     status: "Idle",
     workingDirectory: "",
@@ -106,18 +108,21 @@ function createPane(id: string): PaneRuntimeState {
 
 export function loadWorkspace(): PersistedWorkspace {
   const fallback: PersistedWorkspace = {
-    version: 6,
+    version: 7,
     selectedPaneId: "pane-left",
     fontScale: 1,
     layout: "split-2",
     theme: "aurora",
     language: "en",
     sendMode: "modifier-enter",
-    panes: createDefaultPanes().map(({ id, title, workingDirectory }) => ({
-      id,
-      title,
-      workingDirectory,
-    })),
+    panes: createDefaultPanes().map(
+      ({ id, title, workingDirectory, sessionActive }) => ({
+        id,
+        title,
+        workingDirectory,
+        sessionActive,
+      }),
+    ),
   };
   const storage = safeStorage();
   if (!storage) return fallback;
@@ -133,48 +138,60 @@ export function loadWorkspace(): PersistedWorkspace {
         parsed.version !== 3 &&
         parsed.version !== 4 &&
         parsed.version !== 5 &&
-        parsed.version !== 6) ||
+        parsed.version !== 6 &&
+        parsed.version !== 7) ||
       !Array.isArray(parsed.panes)
     )
       return fallback;
     const storedPanes = parsed.panes
       .filter(isJsonObject)
       .slice(0, 4)
-      .map((pane, index) => ({
-        id: typeof pane.id === "string" ? pane.id : defaultPane(index).id,
-        title: paneTitleValue(pane.title),
-        workingDirectory:
-          typeof pane.workingDirectory === "string"
-            ? pane.workingDirectory
-            : "",
-        threadId: typeof pane.threadId === "string" ? pane.threadId : undefined,
-        model: typeof pane.model === "string" ? pane.model : undefined,
-        reasoning:
-          typeof pane.reasoning === "string" ? pane.reasoning : undefined,
-        serviceTier:
-          typeof pane.serviceTier === "string" ? pane.serviceTier : undefined,
-        approvalPolicy: persistedApprovalPolicyValue(pane.approvalPolicy),
-        sandboxMode: persistedSandboxModeValue(pane.sandboxMode),
-        personality: personalityValue(pane.personality),
-        reasoningSummary: reasoningSummaryValue(pane.reasoningSummary),
-      }));
+      .map((pane, index) => {
+        const sessionActive = pane.sessionActive !== false;
+        return {
+          id: typeof pane.id === "string" ? pane.id : defaultPane(index).id,
+          title: sessionActive ? paneTitleValue(pane.title) : "",
+          workingDirectory:
+            typeof pane.workingDirectory === "string"
+              ? pane.workingDirectory
+              : "",
+          sessionActive,
+          threadId:
+            sessionActive && typeof pane.threadId === "string"
+              ? pane.threadId
+              : undefined,
+          model: typeof pane.model === "string" ? pane.model : undefined,
+          reasoning:
+            typeof pane.reasoning === "string" ? pane.reasoning : undefined,
+          serviceTier:
+            typeof pane.serviceTier === "string" ? pane.serviceTier : undefined,
+          approvalPolicy: persistedApprovalPolicyValue(pane.approvalPolicy),
+          sandboxMode: persistedSandboxModeValue(pane.sandboxMode),
+          personality: personalityValue(pane.personality),
+          reasoningSummary: reasoningSummaryValue(pane.reasoningSummary),
+        };
+      });
     if (storedPanes.length === 0) return fallback;
     const panes = createDefaultPanes().map((pane, index) => {
       const stored = storedPanes[index];
       if (!stored) {
-        const { id, title, workingDirectory } = pane;
-        return { id, title, workingDirectory };
+        const { id, title, workingDirectory, sessionActive } = pane;
+        return { id, title, workingDirectory, sessionActive };
       }
       return stored;
     });
     const layout = layoutValue(parsed.layout);
+    const visiblePaneCount =
+      layout === "split-2" ? 2 : layout === "columns-3" ? 3 : 4;
     const selectedPaneId =
       typeof parsed.selectedPaneId === "string" &&
-      panes.some((pane) => pane.id === parsed.selectedPaneId)
+      panes
+        .slice(0, visiblePaneCount)
+        .some((pane) => pane.id === parsed.selectedPaneId)
         ? parsed.selectedPaneId
         : panes[0].id;
     return {
-      version: 6,
+      version: 7,
       selectedPaneId,
       fontScale: normalizeFontScale(parsed.fontScale),
       layout,
@@ -193,6 +210,7 @@ export function runtimePanesFromWorkspace(
 ): PaneRuntimeState[] {
   return workspace.panes.map((pane) => ({
     ...pane,
+    sessionActive: pane.sessionActive !== false,
     status: "Idle",
     loaded: false,
     events: [],
@@ -211,7 +229,7 @@ export function saveWorkspace(
   const storage = safeStorage();
   if (!storage) return;
   const workspace: PersistedWorkspace = {
-    version: 6,
+    version: 7,
     selectedPaneId,
     fontScale: normalizeFontScale(fontScale),
     layout,
@@ -222,7 +240,8 @@ export function saveWorkspace(
       id: pane.id,
       title: pane.title,
       workingDirectory: pane.workingDirectory,
-      threadId: pane.threadId,
+      sessionActive: pane.sessionActive !== false,
+      threadId: pane.sessionActive === false ? undefined : pane.threadId,
       model: pane.model ?? pane.unavailableModel,
       reasoning: pane.reasoning,
       serviceTier: pane.serviceTier,
@@ -252,6 +271,7 @@ function defaultPane(index: number): PaneRuntimeState {
 function layoutValue(value: unknown): PaneLayout {
   if (
     value === "split-2" ||
+    value === "columns-3" ||
     value === "grid-4" ||
     value === "columns-4" ||
     value === "rows-4"

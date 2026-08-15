@@ -54,6 +54,7 @@ describe("Header", () => {
     );
 
     expect(screen.getByText("Connected")).toBeVisible();
+    expect(screen.getByLabelText("Pane layout")).toHaveTextContent("3 columns");
     expect(screen.getByLabelText("Pane layout")).toHaveTextContent("4 panes");
     expect(screen.getByRole("group", { name: "Font size" })).toBeVisible();
   });

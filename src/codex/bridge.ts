@@ -76,6 +76,7 @@ const TAURI_REQUEST_COMMANDS: Readonly<Record<string, string>> = Object.freeze({
   "thread/list": "codex_thread_list",
   "thread/resume": "codex_thread_resume",
   "thread/read": "codex_thread_read",
+  "thread/unsubscribe": "codex_thread_unsubscribe",
   "thread/name/set": "codex_thread_name_set",
   "review/start": "codex_review_start",
   "turn/start": "codex_turn_start",
@@ -320,6 +321,9 @@ export class PreviewCodexBridge implements CodexBridge {
           },
         };
       }
+      case "thread/unsubscribe":
+        this.activeTurns.delete(String(params.threadId));
+        return { status: "unsubscribed" };
       case "thread/read":
         return this.readPreviewThread(String(params.threadId));
       case "thread/name/set": {

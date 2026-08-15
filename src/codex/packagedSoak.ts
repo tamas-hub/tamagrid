@@ -178,6 +178,7 @@ export class PackagedSoakCodexBridge implements CodexBridge {
           },
         };
       case "thread/name/set":
+      case "thread/unsubscribe":
       case "turn/interrupt":
         return {};
       case "turn/start":

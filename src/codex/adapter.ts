@@ -33,7 +33,18 @@ export interface ThreadListPage {
 }
 
 export class CodexAdapter {
+  private threadLifecycleQueue: Promise<void> = Promise.resolve();
+
   constructor(private readonly bridge: CodexBridge) {}
+
+  private runThreadLifecycle<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.threadLifecycleQueue.then(operation, operation);
+    this.threadLifecycleQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
 
   get mode(): CodexBridge["mode"] {
     return this.bridge.mode;
@@ -119,34 +130,46 @@ export class CodexAdapter {
   }
 
   async startThread(options: ThreadOptions): Promise<ThreadStartResult> {
-    const params: JsonObject = { ephemeral: false, serviceName: "tamagrid" };
-    applyThreadOptions(params, options);
-    const result = await this.bridge.request("thread/start", params);
-    if (
-      !isJsonObject(result) ||
-      !isJsonObject(result.thread) ||
-      typeof result.thread.id !== "string"
-    ) {
-      throw new Error("thread/start returned an invalid response");
-    }
-    return result as ThreadStartResult;
+    return this.runThreadLifecycle(async () => {
+      const params: JsonObject = { ephemeral: false, serviceName: "tamagrid" };
+      applyThreadOptions(params, options);
+      const result = await this.bridge.request("thread/start", params);
+      if (
+        !isJsonObject(result) ||
+        !isJsonObject(result.thread) ||
+        typeof result.thread.id !== "string"
+      ) {
+        throw new Error("thread/start returned an invalid response");
+      }
+      return result as ThreadStartResult;
+    });
   }
 
   async resumeThread(
     threadId: string,
     options: ThreadOptions,
   ): Promise<ThreadStartResult> {
-    const params: JsonObject = { threadId };
-    applyThreadOptions(params, options);
-    const result = await this.bridge.request("thread/resume", params);
-    if (
-      !isJsonObject(result) ||
-      !isJsonObject(result.thread) ||
-      typeof result.thread.id !== "string"
-    ) {
-      throw new Error("thread/resume returned an invalid response");
-    }
-    return result as ThreadStartResult;
+    return this.runThreadLifecycle(async () => {
+      const params: JsonObject = { threadId };
+      applyThreadOptions(params, options);
+      const result = await this.bridge.request("thread/resume", params);
+      if (
+        !isJsonObject(result) ||
+        !isJsonObject(result.thread) ||
+        typeof result.thread.id !== "string"
+      ) {
+        throw new Error("thread/resume returned an invalid response");
+      }
+      return result as ThreadStartResult;
+    });
+  }
+
+  async unsubscribeThread(threadId: string): Promise<void> {
+    const result = await this.bridge.request("thread/unsubscribe", {
+      threadId,
+    });
+    if (!isJsonObject(result))
+      throw new Error("thread/unsubscribe returned an invalid response");
   }
 
   async readThread(threadId: string): Promise<JsonObject> {

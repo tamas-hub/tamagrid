@@ -62,7 +62,7 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - run: pnpm install --frozen-lockfile
-      - name: Exercise packaged WebView and Windows crash containment
+      - name: Exercise packaged WebView and process-tree crash containment
         run: >-
           pnpm test:packaged-soak --
           --duration-ms 30000

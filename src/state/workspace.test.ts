@@ -243,6 +243,39 @@ describe("pane defaults", () => {
     window.localStorage.clear();
   });
 
+  it("restores a three-column layout and a deliberately cleared pane", () => {
+    window.localStorage.setItem(
+      "tamagrid.workspace.v1",
+      JSON.stringify({
+        version: 7,
+        selectedPaneId: "pane-bottom-left",
+        fontScale: 1,
+        layout: "columns-3",
+        theme: "aurora",
+        language: "en",
+        sendMode: "modifier-enter",
+        panes: [
+          {
+            id: "pane-left",
+            title: "",
+            workingDirectory: "",
+            sessionActive: false,
+            threadId: "must-not-restore",
+          },
+          { id: "pane-right", title: "Two", workingDirectory: "" },
+          { id: "pane-bottom-left", title: "Three", workingDirectory: "" },
+        ],
+      }),
+    );
+
+    const workspace = loadWorkspace();
+    expect(workspace.layout).toBe("columns-3");
+    expect(workspace.selectedPaneId).toBe("pane-bottom-left");
+    expect(workspace.panes[0].sessionActive).toBe(false);
+    expect(workspace.panes[0].threadId).toBeUndefined();
+    window.localStorage.clear();
+  });
+
   it("does not restore approval-free or system-wide authority", () => {
     window.localStorage.setItem(
       "tamagrid.workspace.v1",

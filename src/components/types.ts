@@ -8,7 +8,8 @@ import type { AppLanguage } from "../i18n";
 export type { AppLanguage } from "../i18n";
 
 export type PaneStatus = "Running" | "Done" | "Approval" | "Idle" | "Error";
-export type PaneLayout = "split-2" | "grid-4" | "columns-4" | "rows-4";
+export type PaneLayout =
+  "split-2" | "columns-3" | "grid-4" | "columns-4" | "rows-4";
 export type AppTheme = "aurora" | "dark" | "light" | "green";
 export type ApprovalPolicy = "untrusted" | "on-request" | "never";
 export type SandboxMode =
@@ -28,6 +29,7 @@ export interface TimelineEvent {
 export interface AgentPaneData {
   id: string;
   threadId?: string;
+  sessionActive?: boolean;
   title: string;
   status: PaneStatus;
   workingDirectory: string;
@@ -116,6 +118,8 @@ export interface AgentPaneProps {
   onDrop?: () => void;
   onDragEnd?: () => void;
   onMove?: (direction: -1 | 1) => void;
+  onClearSession?: () => void;
+  onStartSession?: () => void;
 }
 export interface SettingsProps {
   open: boolean;
@@ -156,13 +160,18 @@ export interface HistoryDrawerProps {
   nextCursor?: string | null;
   expandedThreadId?: string;
   expandedEvents?: TimelineEvent[];
-  selectedPaneTitle: string;
-  canContinue: boolean;
+  selectedPaneId: string;
+  targetPanes: Array<{
+    id: string;
+    title: string;
+    busy: boolean;
+  }>;
   assignedPanes?: Record<string, string>;
   onClose: () => void;
   onSearch: (query: string) => void;
   onRefresh: () => void;
   onLoadMore: () => void;
   onToggleThread: (threadId: string) => void;
+  onSelectPane: (paneId: string) => void;
   onContinue: (thread: CodexThreadSummary) => void;
 }
