@@ -5,7 +5,7 @@ Describe the user-visible change and why it is needed.
 ## Validation
 
 - [ ] `pnpm check`
-- [ ] `pnpm audit --prod --audit-level moderate`
+- [ ] `pnpm audit --audit-level moderate` (including development dependencies)
 - [ ] `cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check`
 - [ ] `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`
 - [ ] `cargo test --manifest-path src-tauri/Cargo.toml`

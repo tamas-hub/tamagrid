@@ -4,6 +4,11 @@ TamaGridの利用者に影響する変更をこのファイルへ記録します
 
 ## [Unreleased]
 
+### Maintenance
+
+- Clarify the English overview, Quick Start, Codex integration, security evidence, contributor setup, and maintainer responsibilities; retain the detailed Japanese usage documentation.
+- Update the development toolchain to Vitest 4.1.11 and js-yaml 4.3.2 for GHSA-82fw-gwwq-j7x9 and GHSA-2883-xcg3-v3hh. Include development dependencies in the CI and release JavaScript audit gate. These are tooling changes; no new binary release is implied.
+
 ## [0.7.0] - 2026-08-15
 
 ### Added
