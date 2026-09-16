@@ -34,7 +34,7 @@ TamaGridのGitHub Releaseは、未署名artifactを誤って正式版として�
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm audit --prod --audit-level moderate
+pnpm audit --audit-level moderate
 pnpm check
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings

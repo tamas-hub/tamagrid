@@ -3,6 +3,14 @@
 実施日: 2026-08-13
 対象: React 19 / TypeScript / Vite / Tauri 2 / Rust / Codex App Server stdio / GitHub Actions release
 
+## Maintenance audit update (2026-09-17)
+
+The readiness audit found development-toolchain advisories that the production-only JavaScript audit did not cover. Existing Dependabot [PR #33](https://github.com/tamas-hub/tamagrid/pull/33) updates Vitest to 4.1.11 for [GHSA-82fw-gwwq-j7x9](https://github.com/vitest-dev/vitest/security/advisories/GHSA-82fw-gwwq-j7x9); all nine required checks and a fresh local 51-test run passed before its protected merge. A targeted lockfile update moves ESLint's transitive js-yaml from 4.3.1 to 4.3.2 for [GHSA-2883-xcg3-v3hh](https://github.com/nodeca/js-yaml/security/advisories/GHSA-2883-xcg3-v3hh).
+
+These advisories concern development tools, not dependencies bundled into the TamaGrid desktop runtime. TamaGrid's tests use jsdom rather than Vitest browser mode, and its Vite configuration does not load the public mocker plugin; that limits the observed exposure but does not justify keeping the vulnerable tooling. The js-yaml issue concerns CPU consumption while parsing crafted YAML. CI and release quality gates now audit development dependencies too, at the existing moderate threshold, without adding ignores. The full JavaScript audit passes with the updated lockfile.
+
+The existing RustSec gate passes with its documented unsupported-Linux exception; five upstream `unic-*` maintenance warnings remain. App Server schema validation passes against Codex CLI 0.148.0 (13 client methods, two approval requests, ten notifications). This is a scoped maintenance and documentation review, not a new penetration test or a new binary release. Historical results below retain their original dates and limitations.
+
 ## 公開後ステータス更新（2026-08-14）
 
 このレビューはbinary release公開前に実施しました。その後、保護された`main`に含まれるcommit `c4b9425a0e92c4ed4a13e1b295b7df9401a2f414`から`v0.5.0`をbuildし、[immutable Public Preview prerelease](https://github.com/tamas-hub/tamagrid/releases/tag/v0.5.0)として公開しました。

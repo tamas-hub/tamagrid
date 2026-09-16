@@ -1,6 +1,6 @@
 # Third-party notices
 
-TamaGrid incorporates open-source software from other projects. Those projects remain subject to their own licenses and copyright notices. This file is an inventory aid for the `v0.5.0` Public Preview; it does not replace the license files supplied by upstream projects.
+TamaGrid incorporates open-source software from other projects. Those projects remain subject to their own licenses and copyright notices. This file is an inventory aid for Public Preview releases; it does not replace the license files supplied by upstream projects.
 
 The exact resolved versions are recorded in [`pnpm-lock.yaml`](pnpm-lock.yaml) and [`src-tauri/Cargo.lock`](src-tauri/Cargo.lock). Release builds also include a CycloneDX inventory of the production JavaScript dependency graph as `tamagrid-js.cdx.json`.
 

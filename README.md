@@ -1,50 +1,93 @@
 # TamaGrid
 
-**Unofficial desktop client for OpenAI Codex App Server.**
-
-TamaGridは、ユーザー自身のCodex環境に接続し、最大4つの独立したCodex taskを1画面で実行・監視するWindows / macOS向けAI Development Cockpitです。ローカルのCodex App Serverを利用し、TamaGrid独自のrelay serverや追加API契約を必要としません。
-
-Run and supervise up to four local Codex App Server threads in one desktop cockpit. TamaGrid is local-first, open source, and does not provide Codex or models itself.
+**A local-first, open-source desktop cockpit for supervising multiple Codex App Server tasks, approvals, diffs, and reviews on Windows and macOS.**
 
 > TamaGrid is an independent open-source project and is not affiliated with or endorsed by OpenAI.
 
-> **Project status:** Public Preview. The current release line is `v0.7.x`. Preview binaries are distributed through GitHub Releases only after the documented manual release gate. Windows builds are unsigned and macOS builds are not Developer ID notarized.
+[![CI](https://github.com/tamas-hub/tamagrid/actions/workflows/ci.yml/badge.svg)](https://github.com/tamas-hub/tamagrid/actions/workflows/ci.yml)
+[![Security audit](https://github.com/tamas-hub/tamagrid/actions/workflows/security.yml/badge.svg)](https://github.com/tamas-hub/tamagrid/actions/workflows/security.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-[View release status](../../releases)
+![TamaGrid browser preview showing four demo tasks, an approval request, and code review](docs/screenshots/tamagrid-supervision-preview.png)
 
-![TamaGrid showing four Codex tasks in a 2x2 cockpit](docs/screenshots/tamagrid-preview.png)
+*Privacy-safe browser preview using simulated tasks and usage values. It is a UI demonstration, not evidence of live Codex execution or adoption.*
 
-## Download
+## What is TamaGrid?
 
-GitHubの手動公開ゲートを通過したPublic Preview artifactは [Releases](../../releases) から取得できます。`v0.7.0`では次のartifactを対象とします。
+TamaGrid is a local-first, MIT-licensed desktop client for developers supervising up to four independent Codex tasks. It launches your own `codex app-server` and brings thread history, progress, approvals, code changes, and review controls into one workspace. Execution and authentication remain with your Codex installation; TamaGrid does not supply Codex, models, or a relay service.
 
-- Windows `TamaGrid_*_x64-setup.exe` — 通常の対話型installer（推奨）
-- Windows `TamaGrid_*_x64_en-US.msi` — MSIを必要とする環境向け
-- macOS `.dmg` / `.app` — ad-hoc署名、Developer ID notarizationなし
+## Why TamaGrid exists
 
-Windows版はAuthenticode未署名のため、Microsoft Defender SmartScreenが警告する場合があります。SmartScreenを無効化せず、GitHub Releaseの配布元と `SHA256SUMS.txt` を確認し、内容を信頼できる場合だけ実行してください。企業管理PCではpolicyにより実行できない場合があります。
+Supervising several development tasks can scatter terminals, approvals, thread history, diffs, and model settings across windows. TamaGrid provides one place to see each task and decide what happens next, while keeping the user's existing Codex environment and local execution model.
 
-PowerShellでchecksumと署名状態を確認できます。
+## Quick Start
+
+1. **Prepare Codex.** Install [OpenAI Codex](https://developers.openai.com/codex/) from its official distribution and authenticate in Codex as needed. TamaGrid does not ask for an OpenAI API key or handle sign-in.
+2. **Get TamaGrid.** Download the package for your platform from [GitHub Releases](https://github.com/tamas-hub/tamagrid/releases/tag/v0.7.0). Verify its checksum and provenance using [Download and verification](#download-and-verification). Preview builds are unsigned on Windows and not notarized on macOS.
+3. **Detect the executable.** Open Settings, choose **Auto detect** or **Choose executable**, and confirm the native Codex executable. First use, path changes, and changed SHA-256 fingerprints require native confirmation.
+4. **Test connection.** Select **Test connection** to check the executable, App Server initialization, authentication state, and available models.
+5. **Start a task.** Choose a working directory and pane, keep the safe default policy or explicitly select your settings, and send a task. Use **History** to resume a thread, **Stop** or **Steer** for an active task, and the pane's approval card to review requests.
+
+## Core capabilities
+
+| Workflow | What TamaGrid provides |
+| --- | --- |
+| Supervise multiple tasks | Up to four panes, independent threads, progress and streamed command/file-change events |
+| Continue work | Search and resume saved threads into a chosen pane; rename chats; Stop and Steer active tasks |
+| Select models | Discover models, reasoning options, and service tiers from App Server; display usage limits and reset times |
+| Review changes | Inspect diffs; run Codex code review against a working tree, base branch, commit, or custom instructions |
+| Prepare a PR | Review the local diff and tests and draft a title/body; publishing a PR is a separate explicit operation |
+| Keep control | Per-pane sandbox and approval settings, explicit Approve/Deny, native confirmation for elevated authority |
+| Use the desktop accessibly | Windows/macOS, English/Japanese, keyboard alternatives, visible status text, and 90–200% font sizing |
+
+## Why it matters for Codex workflows
+
+The repository offers an independent integration example for multi-task human supervision through the [Codex App Server protocol](https://learn.chatgpt.com/docs/app-server). A typed React adapter and Rust IPC layer multiplex local threads over stdio, preserving thread/turn identity, approval requests, and execution-policy boundaries in the UI.
+
+Model IDs and reasoning choices come from `model/list`, not a fixed product catalog. The compatibility checker compares the methods, events, and wire values used by TamaGrid with schemas generated by the installed Codex executable. Authentication stays in Codex, with no TamaGrid credential store or API proxy. See [Architecture](docs/ARCHITECTURE.md) for the transport, event routing, lifecycle, and compatibility contract.
+
+## Security & privacy model
+
+- **Executable trust:** canonical native paths, first-use/change confirmation, SHA-256 pinning, and a final fingerprint check before fixed-argument, shell-free launch.
+- **Approval boundary:** method-specific Rust IPC validates input; unsupported server requests fail closed. Elevated `never` / `danger-full-access` modes require confirmation for each turn and are not persisted.
+- **Data boundary:** no TamaGrid relay, credential storage, or custom telemetry. Conversation bodies, command output, diffs, and pending approvals are not stored by TamaGrid. Safe workspace settings and thread references are stored locally.
+- **Network scope:** local-first does not mean offline. Your Codex App Server communicates with OpenAI and may use services configured in your Codex environment.
+- **Verification:** [Security policy and control map](SECURITY.md), [detailed threat model](docs/SECURITY.md), [dated security review and residual risks](SECURITY_REVIEW.md), and [release provenance](PUBLIC_RELEASE_CHECKLIST.md#published-v070-evidence).
+
+## Project status / compatibility
+
+TamaGrid is an **early-stage Public Preview**. The latest published release is [v0.7.0](https://github.com/tamas-hub/tamagrid/releases/tag/v0.7.0); Windows packages are not Authenticode-signed, and macOS packages are ad-hoc signed without Developer ID notarization. The release includes checksums, a production JavaScript SBOM, and GitHub Artifact Attestations. These establish build provenance, not platform signing or bit-for-bit reproducible builds.
+
+Windows x64 and macOS Apple Silicon/Intel packages share the Tauri 2 / Rust / React codebase. CI checks Windows and macOS native builds; the release gate covers all three targets. The original App Server schema snapshot used Codex CLI 0.147.0; the schema check also passed against 0.148.0 on 2026-09-17. This is a schema check, not a claim that every runtime path or future Codex version has been tested.
+
+Current boundaries include stdio transport, command/file-change approvals, and local PR preparation. Remote transport, experimental App Server APIs, automatic updates, and trusted platform signing remain outside the implemented scope. See [known limitations](#current-scope-and-known-limitations), [Changelog](CHANGELOG.md), and [release policy](docs/RELEASING.md).
+
+## Contributing
+
+Start with the English [contribution guide](CONTRIBUTING.md) for prerequisites, development, tests, and the PR process. [Maintainers and maintenance priorities](MAINTAINERS.md) describes responsibility and ongoing work. Report reproducible bugs and focused proposals through the [issue templates](https://github.com/tamas-hub/tamagrid/issues/new/choose); use [private vulnerability reporting](SECURITY.md#reporting-a-vulnerability) for security issues.
+
+日本語の機能・操作・安全性の詳細は、この下に残しています。TamaGridはユーザー自身のCodex環境を利用する、非公式のOSSです。
+
+## Download and verification
+
+The published [Public Preview release](https://github.com/tamas-hub/tamagrid/releases/tag/v0.7.0) provides:
+
+- Windows `TamaGrid_*_x64-setup.exe` — standard interactive installer
+- Windows `TamaGrid_*_x64_en-US.msi` — for environments requiring MSI
+- macOS `.dmg` / `.app.tar.gz` — Apple Silicon and Intel, ad-hoc signed, not notarized
+
+Windows SmartScreen and macOS Gatekeeper may warn about these builds. Do not disable those protections. Check the official repository release origin and `SHA256SUMS.txt`, and run a package only if you trust it. Managed-device policies may prevent installation. Do not run an artifact whose checksum does not match.
+
+On Windows, check the checksum and signing status:
 
 ```powershell
 Get-FileHash -LiteralPath .\TamaGrid_0.7.0_x64-setup.exe -Algorithm SHA256
 Get-AuthenticodeSignature -LiteralPath .\TamaGrid_0.7.0_x64-setup.exe
 ```
 
-checksumが `SHA256SUMS.txt` と一致しない場合は実行しないでください。tagged buildはGitHub Artifact Attestationも生成するため、GitHub CLIが利用できる場合は `gh attestation verify <artifact> --repo tamas-hub/tamagrid` でbuild provenanceを追加確認できます。これはOSのcode signingを置き換えるものではありません。
+With GitHub CLI, run `gh attestation verify <artifact> --repo tamas-hub/tamagrid` to verify build provenance. Each release also includes `RELEASE_NOTES.md`, `THIRD_PARTY_NOTICES.md`, and `tamagrid-js.cdx.json`. Attestation does not replace OS code signing; see [platform signing limitations](docs/CODE_SIGNING.md).
 
-## What is TamaGrid?
-
-TamaGridは一般的なチャットクライアントではなく、複数の開発taskを同時に監督するためのデスクトップUIです。ローカルでユーザーの `codex app-server` を起動し、標準入出力のApp Server protocolを介してthread、turn、streaming event、approvalを扱います。TamaGrid運営者のサーバは経由しません。
-
-## Who is this for?
-
-- 複数のCodex taskを同時に監視したい個人開発者
-- terminalを複数開かず、approval・diff・進捗を1画面で確認したい人
-- modelやreasoning optionを固定せず、自分のCodex環境をそのまま利用したい人
-- 日本語 / English、90%〜200%の文字サイズ、keyboard操作を必要とする人
-
-## Features
+## Detailed capabilities / 機能詳細
 
 - 2列、2×2の4分割、横4列、縦4段を切り替えられる最大4Pane
 - Paneのドラッグ＆ドロップ並べ替えと、キーボードの `Alt` + 矢印キーによる代替操作。並び順も保存
@@ -227,7 +270,7 @@ pnpm tauri build
 
 WindowsはNSIS / MSI installer、macOSはapp / dmgを生成できます。local buildには各OSのTauri prerequisitesが必要です。GitHub Actionsはpush / pull requestでquality check、依存差分review、RustSec監査、Actions / JavaScript・TypeScript / RustのCodeQL、Windows / macOS native buildを行います。手動のBundle smoke workflowでは3 platformそれぞれで30秒のpackaged Channel / WebView試験を通過してから実bundleを作り、artifactを7日だけ保持して確認できます。`vX.Y.Z` tagはchecksum・build provenance・production JavaScript SBOM付きdraft prereleaseだけを作り、自動公開しません。third-party actionはfull commit SHAへ固定しています。release手順は [docs/RELEASING.md](docs/RELEASING.md) を参照してください。
 
-## Contributing
+## Contribution principles / 貢献時の原則
 
 [CONTRIBUTING.md](CONTRIBUTING.md) を読み、変更範囲に応じてfrontend test、Rust test、両OS buildを更新してください。model名やreasoning optionのhard-code、credential保存、silent approval、shell executionは受け入れません。
 

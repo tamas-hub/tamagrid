@@ -1,43 +1,60 @@
 # Contributing to TamaGrid
 
-TamaGridへのcontributionを歓迎します。変更前にIssueまたは短い提案でscopeを共有してください。
+Contributions are welcome. Share the scope in an issue or a short proposal before starting a substantial change. English and Japanese reports are welcome.
 
-参加するときは [Code of Conduct](CODE_OF_CONDUCT.md) も確認してください。security vulnerabilityはpublic Issueへ書かず、[Security policy](SECURITY.md) を利用します。
+Read the [Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately through the [Security policy](SECURITY.md), not in public issues. See [MAINTAINERS.md](MAINTAINERS.md) for responsibility and maintenance priorities.
 
 ## Principles
 
-- TamaGridはユーザー自身のCodex App Serverを利用し、Codexやmodelを提供しません。
-- model ID、model名、reasoning effortをproduction codeへ固定しません。
-- credential、API key、token、ChatGPT passwordを取得・保存しません。
-- command / file changeをsilent approvalしません。
-- WebViewへraw App Server method / params、raw executable pathを受けるcommandを公開しません。
-- custom executableはRust native pickerとnative confirmationを通し、shell commandとして実行しません。
-- `never` / `danger-full-access` を永続化せず、native just-in-time confirmationを迂回させません。
-- stable APIを優先し、experimental APIは別提案として扱います。
+- Use the user's own Codex App Server; do not provide Codex or models.
+- Discover model IDs, model names, and reasoning efforts instead of hard-coding them in production.
+- Do not collect or store credentials, API keys, tokens, or ChatGPT passwords.
+- Never silently approve commands or file changes.
+- Do not expose raw App Server method/params or executable-path commands to the WebView.
+- Select custom executables through the Rust native picker and confirmation, and launch without a shell.
+- Do not persist `never` / `danger-full-access` or bypass native just-in-time confirmation.
+- Prefer stable APIs; discuss experimental APIs as a separate proposal.
 
 ## Setup
 
-Tauriの[platform prerequisites](https://v2.tauri.app/start/prerequisites/)を準備したうえで実行します。
+Use Node.js 22.13+ (an even-numbered LTS release), the pinned pnpm 11.21.0, and stable Rust. Install the [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/): Microsoft C++ Build Tools and WebView2 on Windows, or Xcode Command Line Tools on macOS. Fork the repository, clone your fork, and create a branch for the change.
 
 ```powershell
 pnpm install --frozen-lockfile
 pnpm install:privacy-hook
+pnpm dev
+```
+
+The browser preview uses simulated events without starting Codex or reading an account. Use `pnpm tauri dev` for the native application and `pnpm tauri build` for a production package on your OS.
+
+The privacy-hook installer copies the tracked hook into this clone's Git metadata. It stops without overwriting an existing pre-push hook or custom hooks path. The hook checks author/committer and annotated-tagger metadata on all pushed refs, permits GitHub noreply identities, and fails without printing address values. Configure a GitHub noreply identity locally in your clone before committing. Repository rules require verified signatures on every branch; do not bypass those rules. See [Architecture](docs/ARCHITECTURE.md) before changing the protocol boundary.
+
+## Checks
+
+```powershell
 pnpm check
+pnpm audit --audit-level moderate
+pnpm check:commit-emails
+cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-`install:privacy-hook` はtracked hookをこのcloneのGit metadata内へ安全にコピーして有効化します。既存のpre-push hookやcustom hooks pathは上書きせず停止します。hookはpush対象のcommit author / committerとannotated taggerをGitHub noreply形式に限定し、address値を出力せず送信前に失敗させます。GitHub Freeではcommit metadata rulesetが実効しないため、cloneごとにこの設定が必要です。
+`pnpm check` runs ESLint, frontend tests, TypeScript checking, and the production frontend build. The dependency audit includes development tools as well as production packages.
 
-実際のApp Serverを使う確認では、テスト用または自分自身のCodex環境だけを使用し、ログへ秘密情報を残さないでください。
+For Codex compatibility changes, run `pnpm check:app-server-schema` against a trusted native Codex executable. It generates temporary schemas without reading account or conversation data; `TAMAGRID_CODEX_EXECUTABLE` can select the executable. For process lifecycle or streaming changes, use `pnpm test:packaged-soak -- --duration-ms 180000` and the platform checks in [Releasing](docs/RELEASING.md). RustSec auditing uses the command and documented target-specific exception in that guide; do not add broad ignores to pass a check.
+
+Use only your own or a dedicated test Codex environment for live checks, and keep secrets out of logs. Clearly distinguish preview fixtures, schema checks, and actual authenticated runtime validation.
 
 ## Pull requests
 
-- 1つの目的に絞り、無関係なformat変更を混ぜない
-- protocol変更にはwire event / race / error handlingのtestを追加する
-- UI変更はdesktopと375px幅を確認し、色だけに依存しないstatus表現を維持する
-- Windows固有変更はWindows、macOS固有変更はmacOSでbuildする
-- READMEのsecurity、privacy、compatibility説明と実装を一致させる
-- security-sensitive変更は `SECURITY_REVIEW.md` のfinding / residual riskとtest evidenceを更新する
-- commitのauthor / committerとannotated taggerにはGitHubのnoreply addressを使う。tracked pre-push hookと必須CIは全ref / tagを検査し、実addressをlogへ出さずに拒否する
+- Keep the change focused and avoid unrelated formatting.
+- Add wire-event, race, and error-handling tests for protocol changes.
+- Check UI changes at desktop and 375px widths; preserve status cues that do not rely only on color.
+- Build Windows-specific changes on Windows and macOS-specific changes on macOS; disclose unavailable checks.
+- Keep README security, privacy, and compatibility claims aligned with the implementation.
+- Update findings, residual risks, and evidence in `SECURITY_REVIEW.md` for security-sensitive changes.
+- Use the PR template to explain the problem, changes, validation, and safety impact. All required checks must pass before a protected merge.
+- Keep commit author/committer and annotated-tagger addresses in GitHub noreply form. The hook and required CI inspect refs/tags without exposing address values.
 
-commit、Issue、PRへcredential、account email、private repository path、実command outputを含めないでください。
+Do not include credentials, account email, private repository paths, or unredacted command output in commits, issues, or PRs. Release tags and publication follow the separate [manual release gate](docs/RELEASING.md#manual-release-gate); documentation changes alone do not need a release.
